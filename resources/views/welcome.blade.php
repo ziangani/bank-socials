@@ -29,7 +29,7 @@
         <div class="min-h-screen flex items-center justify-center">
             <div class="text-center bg-gray-50 p-10 rounded-lg mb-10">
                 <h1 class="text-5xl font-extrabold mb-6 text-black">Welcome to Social Banking</h1>
-                <hr/>
+{{--                <hr/>--}}
                 <p class="text-xl mb-6 text-gray-800">Your gateway to a new era of financial connectivity.</p>
                 <hr/>
                 {{-- <h2 class="text-2xl texl- font-semibold mb-4 text-gray-900">Features:</h2> --}}
