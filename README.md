@@ -2,6 +2,8 @@
 
 A modular social banking system built with Laravel 11 that handles both WhatsApp and USSD channels.
 
+[![Laravel Forge Site Deployment Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fforge.laravel.com%2Fsite-badges%2F35849a4b-6a83-4236-ae62-8ca0b9da65ec&style=plastic)](https://forge.laravel.com/servers/820094/sites/2525696)
+
 ## Features
 
 - Multi-channel support (WhatsApp & USSD)
@@ -50,7 +52,7 @@ A modular social banking system built with Laravel 11 that handles both WhatsApp
 
 - PHP 8.2+
 - Laravel 11
-- MySQL 8.0+
+- PgSQL 15.0+
 - Redis (optional, for session management)
 - Composer
 
@@ -58,7 +60,7 @@ A modular social banking system built with Laravel 11 that handles both WhatsApp
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/social-banking.git
+git clone https://github.com/ziangani/social-banking.git
 cd social-banking
 ```
 
