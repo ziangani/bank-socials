@@ -3,14 +3,12 @@
 namespace App\Adapters;
 
 use App\Interfaces\MessageAdapterInterface;
-use Illuminate\Support\Facades\Cache;
+use App\Models\WhatsAppSessions;
 use Illuminate\Support\Facades\Log;
 
 class USSDMessageAdapter implements MessageAdapterInterface
 {
     protected string $channel = 'ussd';
-    protected const SESSION_TIMEOUT = 120; // 2 minutes
-    protected const CACHE_PREFIX = 'ussd_session_';
 
     public function parseIncomingMessage(array $request): array
     {
@@ -50,23 +48,32 @@ class USSDMessageAdapter implements MessageAdapterInterface
     public function getSessionData(string $sessionId): ?array
     {
         try {
-            $session = Cache::get($this->getCacheKey($sessionId));
-            
+            $session = WhatsAppSessions::where('session_id', $sessionId)
+                ->where('status', 'active')
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if (!$session) {
+                // Try to find by phone number (for USSD continuity)
+                $session = WhatsAppSessions::where('sender', $sessionId)
+                    ->where('status', 'active')
+                    ->orderBy('id', 'desc')
+                    ->first();
+            }
+
             if (!$session) {
                 return null;
             }
 
-            // Check session timeout
-            if ((time() - $session['last_activity']) > self::SESSION_TIMEOUT) {
-                $this->endSession($sessionId);
-                return null;
-            }
-
-            // Update last activity
-            $session['last_activity'] = time();
-            Cache::put($this->getCacheKey($sessionId), $session, self::SESSION_TIMEOUT);
-
-            return $session;
+            return [
+                'id' => $session->id,
+                'session_id' => $session->session_id,
+                'sender' => $session->sender,
+                'state' => $session->state,
+                'data' => json_decode($session->data, true),
+                'created_at' => $session->created_at,
+                'updated_at' => $session->updated_at
+            ];
         } catch (\Exception $e) {
             Log::error('USSD session retrieval error: ' . $e->getMessage());
             return null;
@@ -76,17 +83,16 @@ class USSDMessageAdapter implements MessageAdapterInterface
     public function createSession(array $data): string
     {
         try {
-            $sessionId = $data['session_id'];
-            $session = [
-                'session_id' => $sessionId,
-                'phone_number' => $data['sender'],
-                'state' => $data['state'] ?? 'INIT',
-                'data' => $data['data'] ?? [],
-                'last_activity' => time()
-            ];
+            $session = new WhatsAppSessions();
+            $session->session_id = $data['session_id'];
+            $session->sender = $data['sender'];
+            $session->state = $data['state'] ?? 'INIT';
+            $session->data = json_encode($data['data'] ?? []);
+            $session->status = 'active';
+            $session->driver = $this->channel;
+            $session->save();
 
-            Cache::put($this->getCacheKey($sessionId), $session, self::SESSION_TIMEOUT);
-            return $sessionId;
+            return $session->session_id;
         } catch (\Exception $e) {
             Log::error('USSD session creation error: ' . $e->getMessage());
             throw $e;
@@ -96,16 +102,25 @@ class USSDMessageAdapter implements MessageAdapterInterface
     public function updateSession(string $sessionId, array $data): bool
     {
         try {
-            $session = $this->getSessionData($sessionId);
+            $session = WhatsAppSessions::where('session_id', $sessionId)
+                ->where('status', 'active')
+                ->orderBy('id', 'desc')
+                ->first();
+
             if (!$session) {
                 return false;
             }
 
-            $session['state'] = $data['state'] ?? $session['state'];
-            $session['data'] = array_merge($session['data'], $data['data'] ?? []);
-            $session['last_activity'] = time();
+            // Create new session record for state change
+            $newSession = new WhatsAppSessions();
+            $newSession->session_id = $sessionId;
+            $newSession->sender = $session->sender;
+            $newSession->state = $data['state'] ?? $session->state;
+            $newSession->data = json_encode($data['data'] ?? json_decode($session->data, true));
+            $newSession->status = 'active';
+            $newSession->driver = $this->channel;
+            $newSession->save();
 
-            Cache::put($this->getCacheKey($sessionId), $session, self::SESSION_TIMEOUT);
             return true;
         } catch (\Exception $e) {
             Log::error('USSD session update error: ' . $e->getMessage());
@@ -116,7 +131,9 @@ class USSDMessageAdapter implements MessageAdapterInterface
     public function endSession(string $sessionId): bool
     {
         try {
-            return Cache::forget($this->getCacheKey($sessionId));
+            return WhatsAppSessions::where('session_id', $sessionId)
+                ->where('status', 'active')
+                ->update(['status' => 'ended', 'state' => 'END']);
         } catch (\Exception $e) {
             Log::error('USSD session end error: ' . $e->getMessage());
             return false;
@@ -171,10 +188,5 @@ class USSDMessageAdapter implements MessageAdapterInterface
     {
         // USSD responses are handled synchronously through formatOutgoingMessage
         return true;
-    }
-
-    protected function getCacheKey(string $sessionId): string
-    {
-        return self::CACHE_PREFIX . $sessionId;
     }
 }

@@ -26,12 +26,12 @@
 <body class="bg-gray-100 min-h-screen p-8">
     <div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden">
         <div class="p-6">
-            <h1 class="text-2xl font-bold mb-4">USSD Simulator</h1>
-            
+            <h1 class="text-2xl font-bold mb-4">Social Banking - USSD Simulator</h1>
+
             <!-- Phone Number Input -->
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                <input type="tel" id="phoneNumber" 
+                <input type="tel" id="phoneNumber"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="260971234567"
                     value="260971234567">
@@ -49,7 +49,7 @@ Press "Start Session" to begin<span class="blink">_</span></div>
             <!-- Input Area -->
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Input</label>
-                <input type="text" id="userInput" 
+                <input type="text" id="userInput"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter your response">
             </div>
@@ -98,12 +98,12 @@ Press "Start Session" to begin<span class="blink">_</span></div>
 
                 const data = await response.json();
                 updateScreen(data);
-                
+
                 // Show/hide buttons
                 document.getElementById('startButton').classList.add('hidden');
                 document.getElementById('sendButton').classList.remove('hidden');
                 document.getElementById('cancelButton').classList.remove('hidden');
-                
+
                 // Focus input
                 document.getElementById('userInput').focus();
             } catch (error) {
@@ -115,7 +115,7 @@ Press "Start Session" to begin<span class="blink">_</span></div>
         async function sendInput() {
             const phoneNumber = document.getElementById('phoneNumber').value;
             const input = document.getElementById('userInput').value;
-            
+
             if (!input.trim()) {
                 return;
             }
@@ -177,12 +177,12 @@ Press "Start Session" to begin<span class="blink">_</span></div>
         function updateScreen(data) {
             const screen = document.getElementById('ussdScreen');
             screen.textContent = data.response.message;
-            
+
             if (data.sessionId) {
                 currentSessionId = data.sessionId;
                 document.getElementById('sessionId').textContent = data.sessionId;
             }
-            
+
             if (data.nextState) {
                 document.getElementById('sessionState').textContent = data.nextState;
             }

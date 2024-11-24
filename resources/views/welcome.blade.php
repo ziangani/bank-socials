@@ -7,14 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="min-h-screen flex flex-col">
-        <!-- Header -->
-        <header class="bg-blue-600 text-white py-6">
-            <div class="container mx-auto px-4">
-                <h1 class="text-3xl font-bold">{{ config('app.friendly_name', 'Social Banking') }}</h1>
-                <p class="mt-2">Banking Made Social</p>
-            </div>
-        </header>
 
         <!-- Main Content -->
         <main class="flex-grow container mx-auto px-4 py-8">
@@ -22,7 +14,7 @@
             <section class="text-center mb-12">
                 <h2 class="text-4xl font-bold mb-4">Welcome to Social Banking</h2>
                 <p class="text-xl text-gray-600 mb-8">Access your banking services through WhatsApp and USSD</p>
-                
+
                 <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     <!-- WhatsApp Card -->
                     <div class="bg-white rounded-lg shadow-lg p-6">
@@ -36,7 +28,7 @@
                                 <li>Follow the registration process</li>
                             </ol>
                         </div>
-                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', config('whatsapp.phone_number', '+1234567890')) }}" 
+                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', config('whatsapp.phone_number', '+1234567890')) }}"
                            class="inline-block bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600"
                            target="_blank">
                             Start WhatsApp Banking
@@ -55,7 +47,7 @@
                                 <li>Follow the prompts</li>
                             </ol>
                         </div>
-                        <a href="{{ url('ussd/simulator') }}" 
+                        <a href="{{ url('ussd/simulator') }}"
                            class="inline-block bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">
                             Try USSD Simulator
                         </a>
@@ -98,23 +90,6 @@
                     </div>
                 </div>
             </section>
-
-            <!-- Developer Section -->
-            <section class="text-center">
-                <h2 class="text-3xl font-bold mb-4">For Developers</h2>
-                <p class="text-gray-600 mb-4">Integrate our services into your applications</p>
-                <div class="space-x-4">
-                    <a href="{{ url('docs') }}" 
-                       class="inline-block bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-900">
-                        API Documentation
-                    </a>
-                    <a href="https://github.com/yourusername/social-banking" 
-                       class="inline-block bg-gray-800 text-white px-6 py-2 rounded-lg hover:bg-gray-900"
-                       target="_blank">
-                        GitHub Repository
-                    </a>
-                </div>
-            </section>
         </main>
 
         <!-- Footer -->
@@ -123,8 +98,8 @@
                 <div class="grid md:grid-cols-3 gap-8">
                     <div>
                         <h4 class="font-semibold mb-2">Contact Us</h4>
-                        <p>Email: support@example.com</p>
-                        <p>Phone: +1234567890</p>
+                        <p>Email: <a href="mailto:devs@abakula.com" class="hover:text-blue-300">devs@abakula.com</a></p>
+                        <p>Phone: <a href="tel:+26964926646" class="hover:text-blue-300">+269 649 26646</a></p>
                     </div>
                     <div>
                         <h4 class="font-semibold mb-2">Quick Links</h4>

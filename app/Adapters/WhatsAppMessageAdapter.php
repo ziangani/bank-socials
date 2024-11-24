@@ -76,12 +76,6 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
                         ]
                     ]
                 ],
-                'template' => [
-                    'messaging_product' => 'whatsapp',
-                    'recipient_type' => 'individual',
-                    'type' => 'template',
-                    'template' => $response['template']
-                ],
                 default => throw new \Exception('Unsupported message type: ' . $type)
             };
         } catch (\Exception $e) {
@@ -100,9 +94,12 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function getSessionData(string $sessionId): ?array
     {
         try {
-            $session = WhatsAppSessions::where('session_id', $sessionId)
-                ->where('status', 'active')
-                ->first();
+            $session = WhatsAppSessions::getActiveSession($sessionId);
+            
+            if (!$session) {
+                // Try to find by sender
+                $session = WhatsAppSessions::getActiveSessionBySender($sessionId);
+            }
 
             if (!$session) {
                 return null;
@@ -113,7 +110,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
                 'session_id' => $session->session_id,
                 'sender' => $session->sender,
                 'state' => $session->state,
-                'data' => json_decode($session->data, true),
+                'data' => $session->data,
                 'created_at' => $session->created_at,
                 'updated_at' => $session->updated_at
             ];
@@ -126,13 +123,21 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function createSession(array $data): string
     {
         try {
-            $session = new WhatsAppSessions();
-            $session->session_id = $data['session_id'];
-            $session->sender = $data['sender'];
-            $session->state = $data['state'] ?? 'INIT';
-            $session->data = json_encode($data['data'] ?? []);
-            $session->status = 'active';
-            $session->save();
+            // End any existing active sessions for this sender
+            WhatsAppSessions::endActiveSessions($data['sender']);
+
+            // Create new session
+            $session = WhatsAppSessions::createNewState(
+                $data['session_id'],
+                $data['sender'],
+                $data['state'] ?? 'INIT',
+                array_merge($data['data'] ?? [], [
+                    'business_phone_id' => $data['business_phone_id'] ?? null,
+                    'message_id' => $data['message_id'] ?? null,
+                    'contact_name' => $data['contact_name'] ?? null
+                ]),
+                $this->channel
+            );
 
             return $session->session_id;
         } catch (\Exception $e) {
@@ -144,17 +149,20 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function updateSession(string $sessionId, array $data): bool
     {
         try {
-            $session = WhatsAppSessions::where('session_id', $sessionId)
-                ->where('status', 'active')
-                ->first();
-
-            if (!$session) {
+            $currentSession = WhatsAppSessions::getActiveSession($sessionId);
+            
+            if (!$currentSession) {
                 return false;
             }
 
-            $session->state = $data['state'] ?? $session->state;
-            $session->data = json_encode($data['data'] ?? json_decode($session->data, true));
-            $session->save();
+            // Create new session state
+            WhatsAppSessions::createNewState(
+                $sessionId,
+                $currentSession->sender,
+                $data['state'] ?? $currentSession->state,
+                array_merge($currentSession->data ?? [], $data['data'] ?? []),
+                $this->channel
+            );
 
             return true;
         } catch (\Exception $e) {
@@ -167,6 +175,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     {
         try {
             return WhatsAppSessions::where('session_id', $sessionId)
+                ->where('status', 'active')
                 ->update(['status' => 'ended', 'state' => 'END']);
         } catch (\Exception $e) {
             Log::error('WhatsApp session end error: ' . $e->getMessage());
@@ -282,15 +291,6 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
                     $messageId,
                     $message,
                     $options['buttons']
-                );
-            }
-
-            if (isset($options['template'])) {
-                return $this->whatsAppService->sendTemplate(
-                    $businessPhoneId,
-                    $recipient,
-                    $options['template'],
-                    $options['template_data'] ?? []
                 );
             }
 

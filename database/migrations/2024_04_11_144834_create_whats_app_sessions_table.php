@@ -14,12 +14,18 @@ return new class extends Migration
         Schema::create('whats_app_sessions', function (Blueprint $table) {
             $table->id();
             $table->string('session_id');
-            $table->string('mobile');
-            $table->string('function');
-            $table->string('action');
-            $table->json('session_data');
-            $table->string('request_reference');
+            $table->string('sender');
+            $table->string('state')->default('INIT');
+            $table->json('data')->nullable();
+            $table->string('status')->default('active');
+            $table->string('driver')->default('whatsapp'); // whatsapp or ussd
             $table->timestamps();
+
+            // Indexes for quick lookups
+            $table->index(['session_id', 'status']);
+            $table->index(['sender', 'status']);
+            $table->index('driver');
+            $table->index('created_at');
         });
     }
 
