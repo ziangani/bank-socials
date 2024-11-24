@@ -30,6 +30,7 @@ return [
     */
 
     'env' => env('APP_ENV', 'production'),
+    'friendly_name' => env('APP_FRIENDLY_NAME', 'Social Banking'),
 
     /*
     |--------------------------------------------------------------------------
@@ -168,7 +169,7 @@ return [
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
         App\Providers\Filament\BackendPanelProvider::class,
-        
+
         /*
          * Social Banking Service Providers...
          */
