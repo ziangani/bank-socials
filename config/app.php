@@ -169,11 +169,12 @@ return [
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
         App\Providers\Filament\BackendPanelProvider::class,
-
+        
         /*
          * Social Banking Service Providers...
          */
         App\Providers\SocialBankingServiceProvider::class,
+        App\Providers\MessageServiceProvider::class,
     ])->toArray(),
 
     /*
