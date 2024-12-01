@@ -226,12 +226,24 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
             return '';
         }
 
-        return match($message['type']) {
+        $content = match($message['type']) {
             'text' => $message['text']['body'] ?? '',
             'interactive' => $this->getInteractiveMessageContent($message),
             'button' => $message['button']['text'] ?? '',
             default => ''
         };
+
+        // Extract number if content starts with a number followed by period and space
+        if (preg_match('/^(\d+)\.\s*(.+)$/', $content, $matches)) {
+            return $matches[1];
+        }
+
+        // If content is just a number, return it
+        if (is_numeric($content)) {
+            return $content;
+        }
+
+        return $content;
     }
 
     public function getMessageType(array $request): string
@@ -247,14 +259,16 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function formatMenuOptions(array $options): array
     {
         $formattedOptions = [];
+        $index = 1;
         foreach ($options as $key => $option) {
             $formattedOptions[] = [
                 'type' => 'reply',
                 'reply' => [
                     'id' => (string)$key,
-                    'title' => substr($option, 0, 20) // WhatsApp button title limit
+                    'title' => $index . '. ' . substr($option, 0, 18) // WhatsApp button title limit minus prefix
                 ]
             ];
+            $index++;
         }
         return $formattedOptions;
     }
@@ -262,14 +276,16 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function formatButtons(array $buttons): array
     {
         $formattedButtons = [];
+        $index = 1;
         foreach ($buttons as $key => $text) {
             $formattedButtons[] = [
                 'type' => 'reply',
                 'reply' => [
                     'id' => (string)$key,
-                    'title' => substr($text, 0, 20) // WhatsApp button title limit
+                    'title' => $index . '. ' . substr($text, 0, 18) // WhatsApp button title limit minus prefix
                 ]
             ];
+            $index++;
         }
         return $formattedButtons;
     }
@@ -311,10 +327,22 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
         $interactive = $message['interactive'] ?? [];
         $type = $interactive['type'] ?? '';
 
-        return match($type) {
+        $content = match($type) {
             'button_reply' => $interactive['button_reply']['title'] ?? '',
             'list_reply' => $interactive['list_reply']['title'] ?? '',
             default => ''
         };
+
+        // Extract number if content starts with a number followed by period and space
+        if (preg_match('/^(\d+)\.\s*(.+)$/', $content, $matches)) {
+            return $matches[1];
+        }
+
+        // If content is just a number, return it
+        if (is_numeric($content)) {
+            return $content;
+        }
+
+        return $content;
     }
 }

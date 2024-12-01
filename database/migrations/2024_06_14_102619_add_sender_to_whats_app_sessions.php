@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('whats_app_sessions', function (Blueprint $table) {
-            $table->string('sender')->nullable();
+//            $table->string('sender')->nullable();
             $table->json('request')->nullable();
 
         });
@@ -24,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('whats_app_sessions', function (Blueprint $table) {
-            $table->dropColumn('sender');
+//            $table->dropColumn('sender');
             $table->dropColumn('request');
         });
     }

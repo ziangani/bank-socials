@@ -137,6 +137,18 @@ class ChatController extends Controller
             // Mark message as processed
             $this->messageAdapter->markMessageAsProcessed($parsedMessage['message_id']);
 
+            // Send response via message adapter
+            $options = [];
+            if ($response['type'] === 'interactive') {
+                $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
+            }
+
+            $this->messageAdapter->sendMessage(
+                $parsedMessage['sender'],
+                $response['message'],
+                $options
+            );
+
             // Format response for channel
             $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
 

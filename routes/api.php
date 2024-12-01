@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChatController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,6 +14,14 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+Route::prefix('whatsapp')->group(function () {
+    Route::post('webhook', [ChatController::class, 'processMessage'])->name('whatsapp.webhook');
+    Route::get('webhook', function (Request $request) {
+        $challenge = $request->query('hub_challenge');
+        return response($challenge, 200);
+    })->name('whatsapp.verify');
+});
 
 // Authentication routes
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
@@ -35,12 +44,6 @@ Route::middleware('throttle:ussd')->prefix('ussd')->group(function () {
     Route::post('/session', 'USSDController@handle');
     Route::post('/session/end', 'USSDController@endSession');
     Route::get('/session/{sessionId}', 'USSDController@sessionStatus');
-});
-
-// WhatsApp API routes
-Route::middleware('throttle:whatsapp')->prefix('whatsapp')->group(function () {
-    Route::post('/webhook', 'WhatsAppController@handleWebhook');
-    Route::get('/webhook', 'WhatsAppController@verifyWebhook');
 });
 
 // System health check

@@ -19,16 +19,12 @@ Route::get('/', function () {
 // WhatsApp endpoints
 Route::prefix('whatsapp')->group(function () {
     Route::post('webhook', [ChatController::class, 'processMessage'])->name('whatsapp.webhook');
-    Route::get('verify', function (Request $request) {
+    Route::get('webhook', function (Request $request) {
         $mode = $request->query('hub_mode');
         $token = $request->query('hub_verify_token');
         $challenge = $request->query('hub_challenge');
 
-        if ($mode === 'subscribe' && $token === config('whatsapp.verify_token')) {
-            return response($challenge, 200);
-        }
-
-        return response()->json(['error' => 'Invalid verify token'], 403);
+        return response($challenge, 200);
     })->name('whatsapp.verify');
 });
 
@@ -38,7 +34,7 @@ Route::prefix('ussd')->group(function () {
     Route::post('simulate', [USSDController::class, 'simulate'])->name('ussd.simulate');
     Route::post('end-session', [USSDController::class, 'endSession'])->name('ussd.end');
     Route::get('session-status', [USSDController::class, 'sessionStatus'])->name('ussd.status');
-    
+
     // USSD Simulator Interface
     Route::get('simulator', function () {
         return view('ussd.simulator');

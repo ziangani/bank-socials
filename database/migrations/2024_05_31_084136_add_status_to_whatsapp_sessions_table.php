@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('whats_app_sessions', function (Blueprint $table) {
-            $table->string('status')->default('ACTIVE');
+//            $table->string('status')->default('ACTIVE');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('whats_app_sessions', function (Blueprint $table) {
-            $table->dropColumn('status');
+//            $table->dropColumn('status');
         });
     }
 };
