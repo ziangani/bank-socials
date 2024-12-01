@@ -7,6 +7,7 @@ use App\Integrations\WhatsAppService;
 use App\Models\ProcessedMessages;
 use App\Models\WhatsAppSessions;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
 
 class WhatsAppMessageAdapter implements MessageAdapterInterface
 {
@@ -293,10 +294,10 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function sendMessage(string $recipient, string $message, array $options = []): bool
     {
         try {
+            // First try to get business phone ID from options
             $businessPhoneId = $options['business_phone_id'] ?? null;
-            $messageId = $options['message_id'] ?? null;
 
-            // If business phone ID is not provided in options, try to get it from the session
+            // If not in options, try to get from session
             if (!$businessPhoneId) {
                 $session = WhatsAppSessions::getActiveSessionBySender($recipient);
                 if ($session) {
@@ -308,9 +309,16 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
                 }
             }
 
+            // If still not found, use config value as fallback
+            if (!$businessPhoneId) {
+                $businessPhoneId = config('whatsapp.business_phone_id');
+            }
+
             if (!$businessPhoneId) {
                 throw new \Exception('Business phone ID is required');
             }
+
+            $messageId = $options['message_id'] ?? null;
 
             if (isset($options['buttons'])) {
                 return $this->whatsAppService->sendMessageWithButtons(
