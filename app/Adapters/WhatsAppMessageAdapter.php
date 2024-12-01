@@ -293,17 +293,20 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function sendMessage(string $recipient, string $message, array $options = []): bool
     {
         try {
-            // Get business phone ID from session if not provided in options
-            if (!isset($options['business_phone_id'])) {
-                $session = WhatsAppSessions::getActiveSessionBySender($recipient);
-                if ($session && $session->data) {
-                    $sessionData = is_array($session->data) ? $session->data : json_decode($session->data, true);
-                    $options['business_phone_id'] = $sessionData['business_phone_id'] ?? null;
-                }
-            }
-
             $businessPhoneId = $options['business_phone_id'] ?? null;
             $messageId = $options['message_id'] ?? null;
+
+            // If business phone ID is not provided in options, try to get it from the session
+            if (!$businessPhoneId) {
+                $session = WhatsAppSessions::getActiveSessionBySender($recipient);
+                if ($session) {
+                    $sessionData = $session->data;
+                    if (is_string($sessionData)) {
+                        $sessionData = json_decode($sessionData, true);
+                    }
+                    $businessPhoneId = $sessionData['business_phone_id'] ?? null;
+                }
+            }
 
             if (!$businessPhoneId) {
                 throw new \Exception('Business phone ID is required');
