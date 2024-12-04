@@ -103,10 +103,9 @@ class ChatController extends Controller
         try {
             // Parse incoming message
             $parsedMessage = $this->messageAdapter->parseIncomingMessage($request->all());
-            if (is_null($parsedMessage)) {
-                return response()->json(['status' => 'invalid_message']);
-            }
-            Log::error(json_encode($parsedMessage));
+
+            if (config('app.debug'))
+                Log::error(json_encode($parsedMessage));
 
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
@@ -160,6 +159,7 @@ class ChatController extends Controller
             return response()->json($formattedResponse);
 
         } catch (\Exception $e) {
+
             Log::error('Chat processing error: ' . $e->getMessage());
             return response()->json([
                 'status' => 'error',

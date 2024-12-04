@@ -22,15 +22,27 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function parseIncomingMessage(array $request): array
     {
         try {
+            // Check if the request is in the new format (flattened structure)
+            if (isset($request['session_id']) && isset($request['message_id'])) {
+                return [
+                    'session_id' => $request['session_id'],
+                    'message_id' => $request['message_id'],
+                    'sender' => $request['sender'],
+                    'recipient' => $request['recipient'],
+                    'type' => $request['type'],
+                    'content' => $request['content'],
+                    'timestamp' => $request['timestamp'],
+                    'contact_name' => $request['contact_name'],
+                    'business_phone_id' => $request['business_phone_id'],
+                    'raw_data' => $request['raw_data']
+                ];
+            }
 
+            // Legacy format parsing
             $entry = $request['entry'][0] ?? null;
             $changes = $entry['changes'][0] ?? null;
             $value = $changes['value'] ?? null;
             $message = $value['messages'][0] ?? null;
-
-            if (!$message) {
-                return [];
-            }
 
             return [
                 'session_id' => $entry['id'] ?? null,
@@ -209,6 +221,12 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
 
     public function getUserIdentifier(array $request): string
     {
+        // Check if request is in new format
+        if (isset($request['sender'])) {
+            return $request['sender'];
+        }
+
+        // Legacy format
         $entry = $request['entry'][0] ?? null;
         $changes = $entry['changes'][0] ?? null;
         $value = $changes['value'] ?? null;
@@ -219,6 +237,12 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
 
     public function getMessageContent(array $request): string
     {
+        // Check if request is in new format
+        if (isset($request['content'])) {
+            return $request['content'];
+        }
+
+        // Legacy format
         $entry = $request['entry'][0] ?? null;
         $changes = $entry['changes'][0] ?? null;
         $value = $changes['value'] ?? null;
@@ -250,6 +274,12 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
 
     public function getMessageType(array $request): string
     {
+        // Check if request is in new format
+        if (isset($request['type'])) {
+            return $request['type'];
+        }
+
+        // Legacy format
         $entry = $request['entry'][0] ?? null;
         $changes = $entry['changes'][0] ?? null;
         $value = $changes['value'] ?? null;
@@ -320,7 +350,6 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
             }
 
             $messageId = $options['message_id'] ?? null;
-
 
             if (isset($options['buttons'])) {
                 return $this->whatsAppService->sendMessageWithButtons(
