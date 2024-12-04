@@ -53,7 +53,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     {
         try {
             $type = $response['type'] ?? 'text';
-            
+
             return match($type) {
                 'text' => [
                     'messaging_product' => 'whatsapp',
@@ -96,7 +96,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     {
         try {
             $session = WhatsAppSessions::getActiveSession($sessionId);
-            
+
             if (!$session) {
                 // Try to find by sender
                 $session = WhatsAppSessions::getActiveSessionBySender($sessionId);
@@ -151,7 +151,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     {
         try {
             $currentSession = WhatsAppSessions::getActiveSession($sessionId);
-            
+
             if (!$currentSession) {
                 return false;
             }
@@ -319,6 +319,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
             }
 
             $messageId = $options['message_id'] ?? null;
+
 
             if (isset($options['buttons'])) {
                 return $this->whatsAppService->sendMessageWithButtons(

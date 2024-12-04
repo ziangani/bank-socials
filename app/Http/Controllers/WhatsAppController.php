@@ -97,10 +97,6 @@ class WhatsAppController extends Controller
             $businessPhoneNumberId = $value['metadata']['phone_number_id'] ?? null;
             $from = $message['from'] ?? null;
 
-            if ($this->sender == '15556037719')
-                return app('App\Http\Controllers\WhatsappBillPaymentsController')->handleWebhook($request);
-
-
             $messageId = $message['id'] ?? null;
             $text = $this->whatsAppMessageService->getMessageText($message);
             $this->msisdn = $from;

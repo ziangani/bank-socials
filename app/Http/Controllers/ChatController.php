@@ -103,7 +103,8 @@ class ChatController extends Controller
         try {
             // Parse incoming message
             $parsedMessage = $this->messageAdapter->parseIncomingMessage($request->all());
-            
+
+
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
                 return response()->json(['status' => 'already_processed']);
@@ -111,7 +112,9 @@ class ChatController extends Controller
 
             // Get or create session
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
-            
+
+
+
             if (!$sessionData) {
                 // New session - show welcome message
                 $sessionId = $this->messageAdapter->createSession([
@@ -142,7 +145,7 @@ class ChatController extends Controller
             if ($response['type'] === 'interactive') {
                 $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
             }
-
+            $options['message_id'] = $parsedMessage['message_id'];
             $this->messageAdapter->sendMessage(
                 $parsedMessage['sender'],
                 $response['message'],
@@ -169,10 +172,10 @@ class ChatController extends Controller
     protected function handleWelcome(array $message): array
     {
         $contactName = $message['contact_name'] ?? 'there';
-        
+
         $menuText = "Hello {$contactName}! 👋\n\n";
         $menuText .= "Welcome to our Social Banking Service. Please select an option:\n\n";
-        
+
         $options = [];
         foreach ($this->mainMenu as $key => $option) {
             $options[$key] = $option['text'];
@@ -395,7 +398,7 @@ class ChatController extends Controller
     protected function processWelcomeInput(array $message, array $sessionData): array
     {
         $input = $message['content'];
-        
+
         foreach ($this->mainMenu as $key => $option) {
             if ($input === $key || strtolower($input) === strtolower($option['text'])) {
                 $this->messageAdapter->updateSession($message['session_id'], [

@@ -50,18 +50,19 @@ class WhatsAppService
     //send button template message
     public function sendMessageWithButtons(string $businessPhoneNumberId, string $from, string $messageId, string $body, array $buttonsList)
     {
+
         $buttons = array_map(function ($id, $title) {
             return [
                 'type' => 'reply',
                 'reply' => [
                     'id' => $id,
-                    'title' => substr($title, 0, 20)
+                    'title' => substr($title['title'], 0, 20)
                 ]
             ];
         }, array_keys($buttonsList), $buttonsList);
         $buttons = array_slice($buttons, 0, 3);
 
-        Http::withToken($this->graphApiToken)
+        $response = Http::withToken($this->graphApiToken)
             ->timeout(30)
             ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", [
                 'messaging_product' => 'whatsapp',
@@ -81,6 +82,7 @@ class WhatsAppService
                     'message_id' => $messageId,
                 ],
             ]);
+        dd($response->json());
     }
 
     public function sendMessage(string $businessPhoneNumberId, string $from, string $messageId, string $text)
@@ -96,6 +98,7 @@ class WhatsAppService
                     'message_id' => $messageId,
                 ],
             ]);
+        return ($response->status() == 200);
     }
 
     public function markMessageAsRead(string $businessPhoneNumberId, string $messageId)
