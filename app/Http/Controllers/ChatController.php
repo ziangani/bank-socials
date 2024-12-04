@@ -103,7 +103,10 @@ class ChatController extends Controller
         try {
             // Parse incoming message
             $parsedMessage = $this->messageAdapter->parseIncomingMessage($request->all());
-
+            if (is_null($parsedMessage)) {
+                return response()->json(['status' => 'invalid_message']);
+            }
+            Log::error(json_encode($parsedMessage));
 
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
@@ -112,7 +115,6 @@ class ChatController extends Controller
 
             // Get or create session
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
-
 
 
             if (!$sessionData) {
@@ -194,7 +196,7 @@ class ChatController extends Controller
      */
     protected function processState(string $state, array $message, array $sessionData): array
     {
-        return match($state) {
+        return match ($state) {
             'WELCOME' => $this->processWelcomeInput($message, $sessionData),
             'REGISTRATION_INIT' => $this->processRegistrationInit($message, $sessionData),
             'TRANSFER_INIT' => $this->processTransferInit($message, $sessionData),

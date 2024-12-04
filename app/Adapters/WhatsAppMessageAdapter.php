@@ -22,13 +22,14 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     public function parseIncomingMessage(array $request): array
     {
         try {
+
             $entry = $request['entry'][0] ?? null;
             $changes = $entry['changes'][0] ?? null;
             $value = $changes['value'] ?? null;
             $message = $value['messages'][0] ?? null;
 
             if (!$message) {
-                throw new \Exception('Invalid WhatsApp message format');
+                return [];
             }
 
             return [
