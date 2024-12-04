@@ -23,7 +23,7 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
     {
         try {
             // Check if the request is in the new format (flattened structure)
-            if (isset($request['session_id']) && isset($request['message_id'])) {
+            if (isset($request['session_id']) && isset($request['raw_data'])) {
                 return [
                     'session_id' => $request['session_id'],
                     'message_id' => $request['message_id'],
