@@ -52,11 +52,12 @@ class WhatsAppService
     {
 
         $buttons = array_map(function ($id, $title) {
+
             return [
                 'type' => 'reply',
                 'reply' => [
                     'id' => $id,
-                    'title' => substr($title['title'], 0, 20)
+                    'title' => substr($title['reply']['title'] ?? $title, 0, 20)
                 ]
             ];
         }, array_keys($buttonsList), $buttonsList);
@@ -82,7 +83,7 @@ class WhatsAppService
                     'message_id' => $messageId,
                 ],
             ]);
-        dd($response->json());
+        return ($response->status() == 200);
     }
 
     public function sendMessage(string $businessPhoneNumberId, string $from, string $messageId, string $text)

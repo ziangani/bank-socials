@@ -109,7 +109,7 @@ class ChatController extends Controller
 
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
-                return response()->json(['status' => 'already_processed']);
+//                return response()->json(['status' => 'already_processed']);
             }
 
             // Get or create session
@@ -161,6 +161,7 @@ class ChatController extends Controller
         } catch (\Exception $e) {
 
             Log::error('Chat processing error: ' . $e->getMessage());
+            Log::error('Chat processing error: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to process message'
