@@ -107,9 +107,13 @@ class ChatController extends Controller
             if (config('app.debug'))
                 Log::error(json_encode($parsedMessage));
 
+            if($parsedMessage['message_id'] == null) {
+                return response()->json(['status' => 'error', 'message' => 'Message cannot be processed']);
+            }
+
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
-//                return response()->json(['status' => 'already_processed']);
+                return response()->json(['status' => 'already_processed']);
             }
 
             // Get or create session
