@@ -19,17 +19,18 @@ class WhatsAppService
     //send button template message
     public function sendMessageWithButtons(string $businessPhoneNumberId, string $from, string $messageId, string $body, array $buttonsList)
     {
-
-        $buttons = array_map(function ($id, $title) {
-
-            return [
+        $buttons = [];
+        $index = 1; // Start from 1
+        foreach ($buttonsList as $title) {
+            $buttons[] = [
                 'type' => 'reply',
                 'reply' => [
-                    'id' => $id,
+                    'id' => (string)$index,
                     'title' => substr($title['reply']['title'] ?? $title, 0, 20)
                 ]
             ];
-        }, array_keys($buttonsList), $buttonsList);
+            $index++;
+        }
         $buttons = array_slice($buttons, 0, 3);
 
         $payload = [
@@ -66,7 +67,6 @@ class WhatsAppService
 
     public function sendMessage(string $businessPhoneNumberId, string $from, string $messageId, string $text)
     {
-
         $response = Http::withToken($this->graphApiToken)
             ->timeout(30)
             ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", [
@@ -179,28 +179,139 @@ class WhatsAppService
             ]);
         if ($res->status() != 200)
             throw new \Exception('Failed to send welcome menu' . $res->body());
-
     }
 
-    public function sendDocument(string $businessPhoneNumberId, string $from, string $messageId, string $caption, string $filename, string $link)
+    public function sendBillerMenu(string $businessPhoneNumberId, string $from, string $messageId, string $body)
     {
+        $sections = [
+            [
+                'title' => "Airtime Purchase",
+                'rows' => [
+                    [
+                        'id' => "Airtime",
+                        'title' => "Direct Top-up",
+                        'description' => "Purchase airtime for on Airtel, MTN or Zamtel"
+                    ],
+                ]
+            ],
+            [
+                'title' => "TV Subscriptions",
+                'rows' => [
+                    [
+                        'id' => "DStv",
+                        'title' => "DStv",
+                        'description' => "Top-up your DStv account"
+                    ],
+                    [
+                        'id' => "GOtv",
+                        'title' => "GOtv",
+                        'description' => "Top-up your GOtv account"
+                    ],
+                    [
+                        'id' => "TopStar",
+                        'title' => "TopStar",
+                        'description' => "Top-up your TopStar account"
+                    ]
+                ]
+            ],
+        ];
 
         $res = Http::withToken($this->graphApiToken)
             ->timeout(30)
             ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", [
-                'recipient_type' => 'individual',
                 'messaging_product' => 'whatsapp',
                 'to' => $from,
-                'type' => 'document',
-                'document' => [
-                    'caption' => $caption,
-                    'filename' => $filename,
-                    'link' => $link
+                'recipient_type' => 'individual',
+                'type' => 'interactive',
+                'interactive' => [
+                    'type' => 'list',
+                    'header' => [
+                        'type' => 'text',
+                        'text' => "Welcome to PayEasy"
+                    ],
+                    'body' => [
+                        'text' => $body
+                    ],
+                    'footer' => [
+                        'text' => "Powered by " . config('app.powered_by')
+                    ],
+                    'action' => [
+                        'button' => "Get Started",
+                        'sections' => $sections
+                    ]
                 ],
                 'context' => [
                     'message_id' => $messageId,
                 ],
             ]);
-        return $res->json();
+        if ($res->status() != 200)
+            throw new \Exception('Failed to send biller menu' . $res->body());
+    }
+
+    public function sendZescoWelcomeMenu(string $businessPhoneNumberId, string $from, string $messageId, string $body)
+    {
+        $sections = [
+            [
+                'title' => "Make payment",
+                'rows' => [
+                    [
+                        'id' => "Make payment",
+                        'title' => "Pre-Paid Payment",
+                        'description' => "Make payment via Mobile Money or Credit/Debit Card"
+                    ],
+                    [
+                        'id' => "Make ppayment",
+                        'title' => "Post Paid Payment",
+                        'description' => "Make payment via Mobile Money or Credit/Debit Card"
+                    ]
+                ]
+            ],
+            [
+                'title' => "Access your history",
+                'rows' => [
+                    [
+                        'id' => "Check statement",
+                        'title' => "View Last Token",
+                        'description' => "Access your account statement"
+                    ],
+                    [
+                        'id' => "Check history",
+                        'title' => "View Transaction History",
+                        'description' => "Review your past transactions"
+                    ]
+                ]
+            ]
+        ];
+
+        $res = Http::withToken($this->graphApiToken)
+            ->timeout(30)
+            ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", [
+                'messaging_product' => 'whatsapp',
+                'to' => $from,
+                'recipient_type' => 'individual',
+                'type' => 'interactive',
+                'interactive' => [
+                    'type' => 'list',
+                    'header' => [
+                        'type' => 'text',
+                        'text' => "Welcome to ZESCO Limited"
+                    ],
+                    'body' => [
+                        'text' => $body
+                    ],
+                    'footer' => [
+                        'text' => "Powered by " . config('app.powered_by')
+                    ],
+                    'action' => [
+                        'button' => "Get Started",
+                        'sections' => $sections
+                    ]
+                ],
+                'context' => [
+                    'message_id' => $messageId,
+                ],
+            ]);
+        if ($res->status() != 200)
+            throw new \Exception('Failed to send welcome menu' . $res->body());
     }
 }
