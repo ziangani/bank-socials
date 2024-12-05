@@ -189,4 +189,9 @@ class USSDMessageAdapter implements MessageAdapterInterface
         // USSD responses are handled synchronously through formatOutgoingMessage
         return true;
     }
+
+    public function markMessageAsRead(string $sender, string $messageId): void
+    {
+        // USSD doesn't support read receipts, no-op implementation
+    }
 }

@@ -111,9 +111,12 @@ class ChatController extends Controller
                 return response()->json(['status' => 'error', 'message' => 'Message cannot be processed']);
             }
 
+            // Mark message as read
+            $this->messageAdapter->markMessageAsRead($parsedMessage['sender'], $parsedMessage['message_id']);
+
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
-                return response()->json(['status' => 'already_processed']);
+//                return response()->json(['status' => 'already_processed']);
             }
 
             // Get or create session

@@ -73,4 +73,9 @@ interface MessageAdapterInterface
      * Send message to user
      */
     public function sendMessage(string $recipient, string $message, array $options = []): bool;
+
+    /**
+     * Mark message as read
+     */
+    public function markMessageAsRead(string $sender, string $messageId): void;
 }
