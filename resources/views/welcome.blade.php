@@ -42,7 +42,7 @@
                         <div class="mb-4">
                             <p class="font-semibold">How to use:</p>
                             <ol class="text-left list-decimal list-inside">
-                                <li>Dial {{ config('social-banking.channels.ussd.service_code', '*123#') }}</li>
+                                <li>Dial {{ config('social-banking.channels.ussd.service_code', '*123#') }}#</li>
                                 <li>Select your preferred service</li>
                                 <li>Follow the prompts</li>
                             </ol>
