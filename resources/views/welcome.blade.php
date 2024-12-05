@@ -23,12 +23,12 @@
                         <div class="mb-4">
                             <p class="font-semibold">How to get started:</p>
                             <ol class="text-left list-decimal list-inside">
-                                <li>Save our number: {{ config('whatsapp.phone_number', '+1234567890') }}</li>
+                                <li>Save our number: {{ config('whatsapp.phone_number', '+260760570885') }}</li>
                                 <li>Send "Hi" to start</li>
                                 <li>Follow the registration process</li>
                             </ol>
                         </div>
-                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', config('whatsapp.phone_number', '+1234567890')) }}"
+                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', config('whatsapp.phone_number', '+260760570885')) }}"
                            class="inline-block bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600"
                            target="_blank">
                             Start WhatsApp Banking

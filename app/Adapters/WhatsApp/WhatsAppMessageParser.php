@@ -135,6 +135,7 @@ class WhatsAppMessageParser
     {
         $formattedButtons = [];
         foreach ($buttons as $key => $text) {
+            // Since the menu config already uses 1-based indexing, we use the key directly
             $formattedButtons[] = [
                 'type' => 'reply',
                 'reply' => [
@@ -150,6 +151,7 @@ class WhatsAppMessageParser
     {
         $formattedOptions = [];
         foreach ($options as $key => $option) {
+            // Since the menu config already uses 1-based indexing, we use the key directly
             $formattedOptions[] = [
                 'type' => 'reply',
                 'reply' => [
