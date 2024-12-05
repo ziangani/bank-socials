@@ -51,7 +51,7 @@ class WhatsAppSessionManager
                 $data['state'] ?? 'INIT',
                 array_merge($data['data'] ?? [], [
                     'business_phone_id' => $data['business_phone_id'] ?? null,
-                    'message_id' => $data['message_id'] ?? null,
+                    'message_id' => $data['data']['message_id'] ?? null,
                     'contact_name' => $data['contact_name'] ?? null
                 ]),
                 $this->channel

@@ -15,13 +15,14 @@ class ChatController extends BaseMessageController
     protected AccountServicesController $accountServicesController;
 
     public function __construct(
-        MessageAdapterInterface $messageAdapter,
-        SessionManager $sessionManager,
-        RegistrationController $registrationController,
-        TransferController $transferController,
-        BillPaymentController $billPaymentController,
+        MessageAdapterInterface   $messageAdapter,
+        SessionManager            $sessionManager,
+        RegistrationController    $registrationController,
+        TransferController        $transferController,
+        BillPaymentController     $billPaymentController,
         AccountServicesController $accountServicesController
-    ) {
+    )
+    {
         parent::__construct($messageAdapter, $sessionManager);
         $this->registrationController = $registrationController;
         $this->transferController = $transferController;
@@ -42,7 +43,7 @@ class ChatController extends BaseMessageController
                 Log::error(json_encode($parsedMessage));
             }
 
-            if($parsedMessage['message_id'] == null) {
+            if ($parsedMessage['message_id'] == null) {
                 return response()->json(['status' => 'error', 'message' => 'Message cannot be processed']);
             }
 
@@ -63,15 +64,14 @@ class ChatController extends BaseMessageController
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
 
             if (!$sessionData) {
+                $data = $parsedMessage;
+                $data['last_message'] = $parsedMessage['content'];
                 // New session - show welcome message
                 $sessionId = $this->messageAdapter->createSession([
                     'session_id' => $parsedMessage['session_id'],
                     'sender' => $parsedMessage['sender'],
                     'state' => 'WELCOME',
-                    'data' => [
-                        'contact_name' => $parsedMessage['contact_name'] ?? null,
-                        'last_message' => $parsedMessage['content']
-                    ]
+                    'data' => $data,
                 ]);
 
                 $response = $this->handleWelcome($parsedMessage);
@@ -89,9 +89,9 @@ class ChatController extends BaseMessageController
 
             // Send response via message adapter
             $options = [];
-            if ($response['type'] === 'interactive') {
+            if ($response['type'] === 'interactive')
                 $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
-            }
+
             $options['message_id'] = $parsedMessage['message_id'];
             $this->messageAdapter->sendMessage(
                 $parsedMessage['sender'],
@@ -164,6 +164,7 @@ class ChatController extends BaseMessageController
      */
     protected function processState(string $state, array $message, array $sessionData): array
     {
+
         return match ($state) {
             'WELCOME' => $this->processWelcomeInput($message, $sessionData),
             'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
@@ -191,8 +192,9 @@ class ChatController extends BaseMessageController
         $input = $message['content'];
         $mainMenu = $this->getMenuConfig('main');
 
+
         foreach ($mainMenu as $key => $option) {
-            if ($input === $key || strtolower($input) === strtolower($option['text'])) {
+            if ($input == $key || strtolower($input) == strtolower($option['text'])) {
                 $this->messageAdapter->updateSession($message['session_id'], [
                     'state' => $option['state'],
                     'data' => [

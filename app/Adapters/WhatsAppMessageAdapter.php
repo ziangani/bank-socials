@@ -67,6 +67,9 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
 
     public function markMessageAsProcessed(string $messageId): bool
     {
+        if (config('app.env') == 'local')
+            return true;
+
         return $this->processor->markMessageAsProcessed($messageId);
     }
 
@@ -92,11 +95,17 @@ class WhatsAppMessageAdapter implements MessageAdapterInterface
 
     public function sendMessage(string $recipient, string $message, array $options = []): bool
     {
+        if (config('app.env') == 'local')
+            return true;
+
         return $this->sender->sendMessage($recipient, $message, $options);
     }
 
     public function markMessageAsRead(string $sender, string $messageId): void
     {
+        if (config('app.env') == 'local')
+            return;
+
         $this->sender->markMessageAsRead($sender, $messageId);
     }
 }
