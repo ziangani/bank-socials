@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Chat;
 
-use App\Models\Transaction;
-use App\Services\TransactionService;
 use App\Common\GeneralStatus;
+use App\Http\Controllers\Controller;
+use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 

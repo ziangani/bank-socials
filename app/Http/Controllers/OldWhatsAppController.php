@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
 use stdClass;
 use Symfony\Component\HttpFoundation\ParameterBag;
 
-class WhatsAppController extends Controller
+class OldWhatsAppController extends Controller
 {
     private bool $is_new_request;
     private string $msisdn;

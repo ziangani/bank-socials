@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\ChatController;
+use App\Http\Controllers\Chat\ChatController;
 use App\Http\Controllers\USSDController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Http\Request;
