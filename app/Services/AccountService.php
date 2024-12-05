@@ -220,7 +220,7 @@ class AccountService extends BaseService
             'available' => 5000.00,
             'current' => 5000.00,
             'hold' => 0.00,
-            'currency' => 'KES'
+            'currency' => config('social-banking.transactions.default_currency')
         ];
     }
 
