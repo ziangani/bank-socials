@@ -60,6 +60,11 @@ class ChatController extends BaseMessageController
                 return $this->handleExitCommand($parsedMessage);
             }
 
+            // Check for return to main menu command '00'
+            if ($parsedMessage['content'] === '00') {
+                return $this->handleReturnToMainMenu($parsedMessage);
+            }
+
             // Get or create session
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
 
@@ -115,6 +120,42 @@ class ChatController extends BaseMessageController
     }
 
     /**
+     * Handle return to main menu command
+     */
+    protected function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
+    {
+        // Update session state to WELCOME
+        if ($parsedMessage['session_id']) {
+            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                'state' => 'WELCOME',
+                'data' => [
+                    'last_message' => '00'
+                ]
+            ]);
+        }
+
+        // Get welcome message response
+        $response = $this->handleWelcome($parsedMessage);
+
+        // Send response via message adapter
+        $options = [];
+        if ($response['type'] === 'interactive') {
+            $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
+        }
+        $options['message_id'] = $parsedMessage['message_id'];
+        
+        $this->messageAdapter->sendMessage(
+            $parsedMessage['sender'],
+            $response['message'],
+            $options
+        );
+
+        // Format response for channel
+        $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
+        return response()->json($formattedResponse);
+    }
+
+    /**
      * Handle exit command
      */
     protected function handleExitCommand(array $parsedMessage): \Illuminate\Http\JsonResponse
@@ -154,7 +195,7 @@ class ChatController extends BaseMessageController
         $menuText .= "Welcome to our Social Banking Service. Please select an option:\n\n";
 
         $mainMenu = $this->getMenuConfig('main');
-        $menuText .= "\nTo exit at any time, reply with 000.";
+        $menuText .= "\nTo return to this menu at any time, reply with 00.\nTo exit at any time, reply with 000.";
 
         return $this->formatMenuResponse($menuText, $mainMenu);
     }
