@@ -134,15 +134,16 @@ class WhatsAppMessageParser
     public function formatButtons(array $buttons): array
     {
         $formattedButtons = [];
-        foreach ($buttons as $key => $text) {
-            // Since the menu config already uses 1-based indexing, we use the key directly
+        $index = 1; // Start from 1
+        foreach ($buttons as $text) {
             $formattedButtons[] = [
                 'type' => 'reply',
                 'reply' => [
-                    'id' => (string)$key,
-                    'title' => $key . '. ' . substr($text, 0, 18) // WhatsApp button title limit minus prefix
+                    'id' => (string)$index,
+                    'title' => $index . '. ' . substr($text, 0, 18) // WhatsApp button title limit minus prefix
                 ]
             ];
+            $index++;
         }
         return $formattedButtons;
     }
@@ -150,15 +151,16 @@ class WhatsAppMessageParser
     public function formatMenuOptions(array $options): array
     {
         $formattedOptions = [];
-        foreach ($options as $key => $option) {
-            // Since the menu config already uses 1-based indexing, we use the key directly
+        $index = 1; // Start from 1
+        foreach ($options as $option) {
             $formattedOptions[] = [
                 'type' => 'reply',
                 'reply' => [
-                    'id' => (string)$key,
-                    'title' => $key . '. ' . substr($option, 0, 18) // WhatsApp button title limit minus prefix
+                    'id' => (string)$index,
+                    'title' => $index . '. ' . substr($option, 0, 18) // WhatsApp button title limit minus prefix
                 ]
             ];
+            $index++;
         }
         return $formattedOptions;
     }
