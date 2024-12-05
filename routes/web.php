@@ -30,7 +30,7 @@ Route::prefix('whatsapp')->group(function () {
 
 // USSD endpoints
 Route::prefix('ussd')->group(function () {
-    Route::post('handle', [ChatController::class, 'processMessage'])->name('ussd.handle');
+    Route::post('handle', [USSDController::class, 'handle'])->name('ussd.handle');
     Route::post('simulate', [USSDController::class, 'simulate'])->name('ussd.simulate');
     Route::post('end-session', [USSDController::class, 'endSession'])->name('ussd.end');
     Route::get('session-status', [USSDController::class, 'sessionStatus'])->name('ussd.status');

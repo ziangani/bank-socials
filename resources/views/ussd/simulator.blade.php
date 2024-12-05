@@ -92,7 +92,7 @@ Press "Start Session" to begin<span class="blink">_</span></div>
                     },
                     body: JSON.stringify({
                         phoneNumber: phoneNumber,
-                        input: ''
+                        input: 'start'
                     })
                 });
 

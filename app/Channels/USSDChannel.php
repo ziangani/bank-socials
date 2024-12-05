@@ -3,14 +3,11 @@
 namespace App\Channels;
 
 use App\Interfaces\ChannelInterface;
+use App\Models\WhatsAppSessions;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 
 class USSDChannel implements ChannelInterface
 {
-    // USSD session timeout in seconds (2 minutes)
-    protected const SESSION_TIMEOUT = 120;
-
     public function processRequest(array $request): array
     {
         try {
@@ -25,12 +22,21 @@ class USSDChannel implements ChannelInterface
 
             // New session
             if (empty($input)) {
-                return $this->handleNewSession($sessionId, $phoneNumber);
+                return $this->handleNewSession($sessionId, $phoneNumber, $serviceCode);
+            }
+
+            // Get active session
+            $session = WhatsAppSessions::getActiveSession($sessionId);
+            if (!$session) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Session error. Please try again.',
+                    'type' => 'END'
+                ];
             }
 
             // Process input based on current state
-            $currentState = $this->getSessionState($sessionId);
-            return $this->processUSSDInput($sessionId, $currentState, $input);
+            return $this->processUSSDInput($session, $input);
 
         } catch (\Exception $e) {
             Log::error('USSD channel error: ' . $e->getMessage());
@@ -60,41 +66,33 @@ class USSDChannel implements ChannelInterface
 
     public function validateSession(string $sessionId): bool
     {
-        try {
-            $session = Cache::get("ussd_session_{$sessionId}");
-            if (!$session) {
-                return false;
-            }
-
-            // Check session timeout
-            if ((time() - $session['last_activity']) > self::SESSION_TIMEOUT) {
-                $this->endSession($sessionId);
-                return false;
-            }
-
-            // Update last activity
-            $session['last_activity'] = time();
-            Cache::put("ussd_session_{$sessionId}", $session, self::SESSION_TIMEOUT);
-
-            return true;
-        } catch (\Exception $e) {
-            Log::error('USSD session validation error: ' . $e->getMessage());
-            return false;
-        }
+        $session = WhatsAppSessions::getActiveSession($sessionId);
+        return $session ? $session->isActive() : false;
     }
 
     public function initializeSession(array $data): string
     {
         try {
-            $sessionId = $data['sessionId'];
-            $session = [
-                'phoneNumber' => $data['phoneNumber'],
-                'state' => 'INIT',
-                'data' => [],
-                'last_activity' => time()
-            ];
+            $sessionId = $data['sessionId'] ?? 'USSD_' . uniqid();
+            $phoneNumber = $data['phoneNumber'] ?? null;
+            $serviceCode = $data['serviceCode'] ?? '*123#';
 
-            Cache::put("ussd_session_{$sessionId}", $session, self::SESSION_TIMEOUT);
+            if (!$phoneNumber) {
+                throw new \Exception('Phone number is required for USSD session');
+            }
+
+            // End any existing active sessions for this phone number
+            WhatsAppSessions::endActiveSessions($phoneNumber);
+
+            // Create new session
+            WhatsAppSessions::createNewState(
+                $sessionId,
+                $phoneNumber,
+                'INIT',
+                ['service_code' => $serviceCode],
+                'ussd'
+            );
+
             return $sessionId;
         } catch (\Exception $e) {
             Log::error('USSD session initialization error: ' . $e->getMessage());
@@ -105,19 +103,27 @@ class USSDChannel implements ChannelInterface
     public function endSession(string $sessionId): bool
     {
         try {
-            Cache::forget("ussd_session_{$sessionId}");
-            return true;
+            $session = WhatsAppSessions::getActiveSession($sessionId);
+            if ($session) {
+                return $session->update([
+                    'status' => 'ended',
+                    'state' => 'END'
+                ]);
+            }
+            return false;
         } catch (\Exception $e) {
             Log::error('USSD session end error: ' . $e->getMessage());
             return false;
         }
     }
 
-    protected function handleNewSession(string $sessionId, string $phoneNumber): array
+    protected function handleNewSession(string $sessionId, string $phoneNumber, string $serviceCode): array
     {
+        // Initialize new session
         $this->initializeSession([
             'sessionId' => $sessionId,
-            'phoneNumber' => $phoneNumber
+            'phoneNumber' => $phoneNumber,
+            'serviceCode' => $serviceCode
         ]);
 
         return [
@@ -126,53 +132,69 @@ class USSDChannel implements ChannelInterface
         ];
     }
 
-    protected function processUSSDInput(string $sessionId, string $state, string $input): array
+    protected function processUSSDInput(WhatsAppSessions $session, string $input): array
     {
-        return match($state) {
-            'INIT' => $this->handleMainMenu($sessionId, $input),
-            'SEND_MONEY' => $this->handleSendMoney($sessionId, $input),
-            'AWAITING_AMOUNT' => $this->handleAmount($sessionId, $input),
-            'AWAITING_PIN' => $this->handlePin($sessionId, $input),
-            default => $this->handleUnknownState($sessionId)
+        return match($session->state) {
+            'INIT' => $this->handleMainMenu($session, $input),
+            'SEND_MONEY' => $this->handleSendMoney($session, $input),
+            'AWAITING_AMOUNT' => $this->handleAmount($session, $input),
+            'AWAITING_PIN' => $this->handlePin($session, $input),
+            default => $this->handleUnknownState($session)
         };
     }
 
-    protected function handleMainMenu(string $sessionId, string $input): array
+    protected function handleMainMenu(WhatsAppSessions $session, string $input): array
     {
-        $session = Cache::get("ussd_session_{$sessionId}");
-
-        return match($input) {
+        $response = match($input) {
             '1' => [
                 'message' => 'Please enter your PIN to view balance:',
-                'type' => 'CON'
+                'type' => 'CON',
+                'next_state' => 'AWAITING_PIN'
             ],
             '2' => [
                 'message' => "Enter recipient's phone number:",
-                'type' => 'CON'
+                'type' => 'CON',
+                'next_state' => 'SEND_MONEY'
             ],
             '3' => [
                 'message' => "Select bill to pay:\n1. Electricity\n2. Water\n3. TV\n4. Internet",
-                'type' => 'CON'
+                'type' => 'CON',
+                'next_state' => 'BILL_PAYMENT'
             ],
             '4' => [
                 'message' => 'Please enter your PIN for mini statement:',
-                'type' => 'CON'
+                'type' => 'CON',
+                'next_state' => 'AWAITING_PIN'
             ],
             '5' => [
                 'message' => "My Account:\n1. Change PIN\n2. Update Profile\n3. Limits\n4. Help",
-                'type' => 'CON'
+                'type' => 'CON',
+                'next_state' => 'ACCOUNT_MENU'
             ],
             default => [
                 'message' => 'Invalid selection. Please try again.',
-                'type' => 'END'
+                'type' => 'END',
+                'next_state' => 'END'
             ]
         };
+
+        // Create new state
+        WhatsAppSessions::createNewState(
+            $session->session_id,
+            $session->sender,
+            $response['next_state'],
+            $session->data,
+            'ussd'
+        );
+
+        return [
+            'message' => $response['message'],
+            'type' => $response['type']
+        ];
     }
 
-    protected function handleSendMoney(string $sessionId, string $input): array
+    protected function handleSendMoney(WhatsAppSessions $session, string $input): array
     {
-        $session = Cache::get("ussd_session_{$sessionId}");
-        
         // Validate phone number
         if (!preg_match('/^\d{10,12}$/', $input)) {
             return [
@@ -181,10 +203,14 @@ class USSDChannel implements ChannelInterface
             ];
         }
 
-        // Store recipient number and request amount
-        $session['data']['recipient'] = $input;
-        $session['state'] = 'AWAITING_AMOUNT';
-        Cache::put("ussd_session_{$sessionId}", $session, self::SESSION_TIMEOUT);
+        // Store recipient number and update state
+        WhatsAppSessions::createNewState(
+            $session->session_id,
+            $session->sender,
+            'AWAITING_AMOUNT',
+            array_merge($session->data, ['recipient' => $input]),
+            'ussd'
+        );
 
         return [
             'message' => 'Enter amount to send:',
@@ -192,10 +218,8 @@ class USSDChannel implements ChannelInterface
         ];
     }
 
-    protected function handleAmount(string $sessionId, string $input): array
+    protected function handleAmount(WhatsAppSessions $session, string $input): array
     {
-        $session = Cache::get("ussd_session_{$sessionId}");
-        
         // Validate amount
         if (!is_numeric($input) || $input <= 0) {
             return [
@@ -204,10 +228,14 @@ class USSDChannel implements ChannelInterface
             ];
         }
 
-        // Store amount and request PIN
-        $session['data']['amount'] = $input;
-        $session['state'] = 'AWAITING_PIN';
-        Cache::put("ussd_session_{$sessionId}", $session, self::SESSION_TIMEOUT);
+        // Store amount and update state
+        WhatsAppSessions::createNewState(
+            $session->session_id,
+            $session->sender,
+            'AWAITING_PIN',
+            array_merge($session->data, ['amount' => $input]),
+            'ussd'
+        );
 
         return [
             'message' => 'Enter PIN to confirm transfer:',
@@ -215,10 +243,8 @@ class USSDChannel implements ChannelInterface
         ];
     }
 
-    protected function handlePin(string $sessionId, string $input): array
+    protected function handlePin(WhatsAppSessions $session, string $input): array
     {
-        $session = Cache::get("ussd_session_{$sessionId}");
-        
         // Validate PIN (mock validation)
         if (strlen($input) !== 4 || !is_numeric($input)) {
             return [
@@ -227,27 +253,23 @@ class USSDChannel implements ChannelInterface
             ];
         }
 
-        // Process transaction (mock processing)
-        $recipient = $session['data']['recipient'];
-        $amount = $session['data']['amount'];
+        $recipient = $session->getDataValue('recipient');
+        $amount = $session->getDataValue('amount');
+
+        // End the session
+        $this->endSession($session->session_id);
 
         return [
-            'message' => "Confirmed: KES {$amount} sent to {$recipient}.\nReference: " . substr(md5($sessionId), 0, 8),
+            'message' => "Confirmed: KES {$amount} sent to {$recipient}.\nReference: " . substr(md5($session->session_id), 0, 8),
             'type' => 'END'
         ];
     }
 
-    protected function handleUnknownState(string $sessionId): array
+    protected function handleUnknownState(WhatsAppSessions $session): array
     {
         return [
             'message' => 'Session error. Please try again.',
             'type' => 'END'
         ];
-    }
-
-    protected function getSessionState(string $sessionId): string
-    {
-        $session = Cache::get("ussd_session_{$sessionId}");
-        return $session['state'] ?? 'UNKNOWN';
     }
 }

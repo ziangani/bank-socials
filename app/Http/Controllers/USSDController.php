@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Channels\USSDChannel;
-use App\Services\SessionManager;
+use App\Models\WhatsAppSessions;
 use App\Services\TransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -11,16 +11,13 @@ use Illuminate\Support\Facades\Log;
 class USSDController extends Controller
 {
     protected USSDChannel $ussdChannel;
-    protected SessionManager $sessionManager;
     protected TransactionService $transactionService;
 
     public function __construct(
         USSDChannel $ussdChannel,
-        SessionManager $sessionManager,
         TransactionService $transactionService
     ) {
         $this->ussdChannel = $ussdChannel;
-        $this->sessionManager = $sessionManager;
         $this->transactionService = $transactionService;
     }
 
@@ -74,24 +71,31 @@ class USSDController extends Controller
                 'phoneNumber' => 'required|string'
             ]);
 
-            // Generate session ID for simulation
-            $sessionId = 'SIM_' . uniqid();
+            // Generate session ID for simulation if not provided
+            $sessionId = $request->input('sessionId', 'SIM_' . uniqid());
+
+            // For new sessions (when input is 'start'), pass empty text
+            $text = $request->input === 'start' ? '' : $request->input;
 
             // Process request through USSD channel
             $response = $this->ussdChannel->processRequest([
                 'sessionId' => $sessionId,
                 'phoneNumber' => $request->phoneNumber,
-                'text' => $request->input,
+                'text' => $text,
                 'serviceCode' => '*123#'
             ]);
 
             // Format response for simulator
             $formattedResponse = $this->ussdChannel->formatResponse($response);
 
+            // Get current session state
+            $session = WhatsAppSessions::getActiveSession($sessionId);
+            $nextState = $session ? $session->state : null;
+
             return response()->json([
                 'sessionId' => $sessionId,
                 'response' => $formattedResponse,
-                'nextState' => $this->sessionManager->getState($sessionId)
+                'nextState' => $nextState
             ]);
 
         } catch (\Exception $e) {
@@ -138,13 +142,12 @@ class USSDController extends Controller
                 'sessionId' => 'required|string'
             ]);
 
-            $isValid = $this->ussdChannel->validateSession($request->sessionId);
-            $state = $this->sessionManager->getState($request->sessionId);
+            $session = WhatsAppSessions::getActiveSession($request->sessionId);
 
             return response()->json([
                 'sessionId' => $request->sessionId,
-                'isValid' => $isValid,
-                'state' => $state
+                'isValid' => $session ? $session->isActive() : false,
+                'state' => $session ? $session->state : null
             ]);
 
         } catch (\Exception $e) {
