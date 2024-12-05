@@ -205,24 +205,61 @@ class ChatController extends BaseMessageController
      */
     protected function processState(string $state, array $message, array $sessionData): array
     {
+        // Main menu states
+        if (in_array($state, ['WELCOME'])) {
+            return $this->processWelcomeInput($message, $sessionData);
+        }
 
-        return match ($state) {
-            'WELCOME' => $this->processWelcomeInput($message, $sessionData),
-            'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
-            'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
-            'BILL_PAYMENT_INIT' => $this->billPaymentController->handleBillPayment($message, $sessionData),
-            'SERVICES_INIT' => $this->accountServicesController->handleAccountServices($message, $sessionData),
-            'CARD_REGISTRATION' => $this->registrationController->processCardRegistration($message, $sessionData),
-            'ACCOUNT_REGISTRATION' => $this->registrationController->processAccountRegistration($message, $sessionData),
-            'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
-            'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
-            'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
-            'BALANCE_INQUIRY' => $this->accountServicesController->processBalanceInquiry($message, $sessionData),
-            'MINI_STATEMENT' => $this->accountServicesController->processMiniStatement($message, $sessionData),
-            'FULL_STATEMENT' => $this->accountServicesController->processFullStatement($message, $sessionData),
-            'PIN_MANAGEMENT' => $this->accountServicesController->processPINManagement($message, $sessionData),
-            default => $this->handleUnknownState($message, $sessionData)
-        };
+        // Registration states
+        if (in_array($state, ['REGISTRATION_INIT', 'CARD_REGISTRATION', 'ACCOUNT_REGISTRATION'])) {
+            return $this->registrationController->handleRegistration($message, $sessionData);
+        }
+
+        // Transfer states
+        if (in_array($state, [
+            'TRANSFER_INIT', 
+            'INTERNAL_TRANSFER', 
+            'BANK_TRANSFER', 
+            'MOBILE_MONEY_TRANSFER'
+        ])) {
+            return match ($state) {
+                'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
+                'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
+                'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
+                'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
+                default => $this->handleUnknownState($message, $sessionData)
+            };
+        }
+
+        // Bill payment states
+        if (in_array($state, ['BILL_PAYMENT_INIT'])) {
+            if ($state === 'BILL_PAYMENT_INIT') {
+                return $this->billPaymentController->handleBillPayment($message, $sessionData);
+            }
+            return $this->billPaymentController->processBillPayment($message, $sessionData);
+        }
+
+        // Account services states
+        if (in_array($state, [
+            'SERVICES_INIT',
+            'BALANCE_INQUIRY',
+            'MINI_STATEMENT',
+            'FULL_STATEMENT',
+            'PIN_MANAGEMENT'
+        ])) {
+            if ($state === 'SERVICES_INIT') {
+                return $this->accountServicesController->handleAccountServices($message, $sessionData);
+            }
+            return match ($state) {
+                'BALANCE_INQUIRY' => $this->accountServicesController->processBalanceInquiry($message, $sessionData),
+                'MINI_STATEMENT' => $this->accountServicesController->processMiniStatement($message, $sessionData),
+                'FULL_STATEMENT' => $this->accountServicesController->processFullStatement($message, $sessionData),
+                'PIN_MANAGEMENT' => $this->accountServicesController->processPINManagement($message, $sessionData),
+                default => $this->handleUnknownState($message, $sessionData)
+            };
+        }
+
+        return $this->handleUnknownState($message, $sessionData);
     }
 
     /**
@@ -232,7 +269,6 @@ class ChatController extends BaseMessageController
     {
         $input = $message['content'];
         $mainMenu = $this->getMenuConfig('main');
-
 
         foreach ($mainMenu as $key => $option) {
             if ($input == $key || strtolower($input) == strtolower($option['text'])) {
