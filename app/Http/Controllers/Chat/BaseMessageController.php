@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 
 class BaseMessageController extends Controller
 {
@@ -25,11 +26,14 @@ class BaseMessageController extends Controller
 
     protected function formatMenuResponse(string $message, array $menu, bool $endSession = false): array
     {
-        $menuButtons = [];
-        foreach ($menu as $key => $item) {
-            $menuButtons[$key] = $item['text'];
-        }
-
+        // Log the menu array before any transformation
+        Log::info('Original menu array:', $menu);
+        
+        $menuButtons = array_column($menu, 'text');
+        
+        // Log the transformed menu array
+        Log::info('Transformed menu buttons:', $menuButtons);
+        
         return [
             'message' => $message,
             'type' => 'interactive',
