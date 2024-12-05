@@ -25,10 +25,15 @@ class BaseMessageController extends Controller
 
     protected function formatMenuResponse(string $message, array $menu, bool $endSession = false): array
     {
+        $menuButtons = [];
+        foreach ($menu as $key => $item) {
+            $menuButtons[$key] = $item['text'];
+        }
+
         return [
             'message' => $message,
             'type' => 'interactive',
-            'buttons' => array_column($menu, 'text'),
+            'buttons' => $menuButtons,
             'end_session' => $endSession
         ];
     }
