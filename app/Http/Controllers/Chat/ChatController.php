@@ -212,6 +212,12 @@ class ChatController extends BaseMessageController
         $menuText .= "Welcome to our Social Banking Service. Please select an option:\n\n";
 
         $mainMenu = $this->getMenuConfig('main');
+        
+        // Add menu options to the message text
+        foreach ($mainMenu as $key => $option) {
+            $menuText .= "{$key}. {$option['text']}\n";
+        }
+
         $menuText .= "\nTo return to this menu at any time, reply with 00.\nTo exit at any time, reply with 000.";
 
         return $this->formatMenuResponse($menuText, $mainMenu);
