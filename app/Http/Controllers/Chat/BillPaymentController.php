@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Chat;
 
+use Illuminate\Support\Facades\Log;
+
 class BillPaymentController extends BaseMessageController
 {
     // Bill payment flow states
@@ -43,12 +45,23 @@ class BillPaymentController extends BaseMessageController
 
     public function handleBillPayment(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Initializing bill payment:', [
+                'message' => $message,
+                'session' => $sessionData
+            ]);
+        }
+
         // Initialize bill payment flow with bill type selection
         $this->messageAdapter->updateSession($message['session_id'], [
             'data' => [
                 'step' => self::STATES['BILL_TYPE_SELECTION']
             ]
         ]);
+
+        if (config('app.debug')) {
+            Log::info('Updated session for bill type selection');
+        }
 
         return $this->formatMenuResponse(
             "Please select the type of bill to pay:\n\n",
@@ -63,6 +76,14 @@ class BillPaymentController extends BaseMessageController
 
     public function processBillPayment(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing bill payment:', [
+                'message' => $message,
+                'session' => $sessionData,
+                'current_step' => $sessionData['data']['step'] ?? null
+            ]);
+        }
+
         $currentStep = $sessionData['data']['step'] ?? null;
         
         return match($currentStep) {
@@ -77,9 +98,20 @@ class BillPaymentController extends BaseMessageController
 
     protected function processBillTypeSelection(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing bill type selection:', [
+                'selection' => $message['content'],
+                'session' => $sessionData
+            ]);
+        }
+
         $selection = $message['content'];
         
         if (!isset(self::BILL_TYPES[$selection])) {
+            if (config('app.debug')) {
+                Log::warning('Invalid bill type selection:', ['selection' => $selection]);
+            }
+
             return $this->formatMenuResponse(
                 "Invalid selection. Please select a valid bill type:\n\n",
                 [
@@ -102,16 +134,37 @@ class BillPaymentController extends BaseMessageController
             ]
         ]);
 
+        if (config('app.debug')) {
+            Log::info('Updated session after bill type selection:', [
+                'bill_type' => $billType,
+                'new_step' => self::STATES['ACCOUNT_INPUT']
+            ]);
+        }
+
         return $this->formatTextResponse("Please enter your {$billType['name']} account number:");
     }
 
     protected function processAccountInput(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing account input:', [
+                'account_number' => $message['content'],
+                'session' => $sessionData
+            ]);
+        }
+
         $accountNumber = $message['content'];
         $billType = $sessionData['data']['bill_type'];
         
         // Validate account number format
         if (!preg_match($billType['pattern'], $accountNumber)) {
+            if (config('app.debug')) {
+                Log::warning('Invalid account number format:', [
+                    'account_number' => $accountNumber,
+                    'expected_pattern' => $billType['pattern']
+                ]);
+            }
+
             return $this->formatTextResponse(
                 "Invalid account number format for {$billType['name']}. Please try again:"
             );
@@ -135,15 +188,33 @@ class BillPaymentController extends BaseMessageController
             ]
         ]);
 
+        if (config('app.debug')) {
+            Log::info('Updated session after account input:', [
+                'account_number' => $accountNumber,
+                'new_step' => self::STATES['AMOUNT_INPUT']
+            ]);
+        }
+
         return $this->formatTextResponse("Please enter the amount to pay:");
     }
 
     protected function processAmountInput(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing amount input:', [
+                'amount' => $message['content'],
+                'session' => $sessionData
+            ]);
+        }
+
         $amount = $message['content'];
         
         // Validate amount
         if (!is_numeric($amount) || $amount <= 0) {
+            if (config('app.debug')) {
+                Log::warning('Invalid amount:', ['amount' => $amount]);
+            }
+
             return $this->formatTextResponse("Invalid amount. Please enter a valid number:");
         }
 
@@ -152,6 +223,14 @@ class BillPaymentController extends BaseMessageController
 
     protected function prepareConfirmation(array $message, array $sessionData, string $amount): array
     {
+        if (config('app.debug')) {
+            Log::info('Preparing payment confirmation:', [
+                'bill_type' => $sessionData['data']['bill_type'],
+                'account_number' => $sessionData['data']['account_number'],
+                'amount' => $amount
+            ]);
+        }
+
         $billType = $sessionData['data']['bill_type'];
         $accountNumber = $sessionData['data']['account_number'];
 
@@ -163,6 +242,10 @@ class BillPaymentController extends BaseMessageController
                 'step' => self::STATES['CONFIRM_PAYMENT']
             ]
         ]);
+
+        if (config('app.debug')) {
+            Log::info('Updated session for payment confirmation');
+        }
 
         $confirmationMsg = "Please confirm bill payment:\n\n" .
                           "Type: {$billType['name']}\n" .
@@ -181,16 +264,32 @@ class BillPaymentController extends BaseMessageController
 
     protected function processPaymentConfirmation(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing payment confirmation:', [
+                'response' => $message['content'],
+                'session' => $sessionData
+            ]);
+        }
+
         $response = $message['content'];
 
         if ($response === '2' || strtolower($response) === 'cancel') {
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'WELCOME'
             ]);
+
+            if (config('app.debug')) {
+                Log::info('Payment cancelled, returning to welcome state');
+            }
+
             return $this->formatTextResponse("Payment cancelled. Reply with 00 to return to main menu.");
         }
 
         if ($response !== '1' && strtolower($response) !== 'confirm') {
+            if (config('app.debug')) {
+                Log::warning('Invalid confirmation response:', ['response' => $response]);
+            }
+
             return $this->formatMenuResponse(
                 "Invalid response. Please confirm or cancel the payment:",
                 [
@@ -208,15 +307,29 @@ class BillPaymentController extends BaseMessageController
             ]
         ]);
 
+        if (config('app.debug')) {
+            Log::info('Updated session for PIN verification');
+        }
+
         return $this->formatTextResponse("Please enter your PIN to complete the payment:");
     }
 
     protected function processPinVerification(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing PIN verification:', [
+                'session' => $sessionData
+            ]);
+        }
+
         $pin = $message['content'];
 
         // Validate PIN
         if (strlen($pin) !== 4 || !is_numeric($pin)) {
+            if (config('app.debug')) {
+                Log::warning('Invalid PIN format');
+            }
+
             return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
         }
 
@@ -232,6 +345,10 @@ class BillPaymentController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'WELCOME'
         ]);
+
+        if (config('app.debug')) {
+            Log::info('Payment successful, session reset to welcome state');
+        }
 
         return $this->formatTextResponse($successMsg . "\n\nReply with 00 to return to main menu.");
     }

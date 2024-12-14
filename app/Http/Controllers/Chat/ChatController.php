@@ -40,7 +40,10 @@ class ChatController extends BaseMessageController
             $parsedMessage = $this->messageAdapter->parseIncomingMessage($request->all());
 
             if (config('app.debug')) {
-                Log::error(json_encode($parsedMessage));
+                Log::info('Parsed WhatsApp message:', [
+                    'message' => $parsedMessage,
+                    'raw_request' => $request->all()
+                ]);
             }
 
             if ($parsedMessage['message_id'] == null) {
@@ -67,6 +70,13 @@ class ChatController extends BaseMessageController
 
             // Get or create session
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
+
+            if (config('app.debug')) {
+                Log::info('Session data:', [
+                    'session_id' => $parsedMessage['session_id'],
+                    'data' => $sessionData
+                ]);
+            }
 
             if (!$sessionData) {
                 $data = $parsedMessage;
@@ -104,6 +114,13 @@ class ChatController extends BaseMessageController
                 $options
             );
 
+            if (config('app.debug')) {
+                Log::info('Response sent:', [
+                    'response' => $response,
+                    'options' => $options
+                ]);
+            }
+
             // Format response for channel
             $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
 
@@ -111,7 +128,7 @@ class ChatController extends BaseMessageController
 
         } catch (\Exception $e) {
             Log::error('Chat processing error: ' . $e->getMessage());
-            Log::error('Chat processing error: ' . $e->getTraceAsString());
+            Log::error('Chat processing error trace: ' . $e->getTraceAsString());
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to process message'
@@ -205,6 +222,14 @@ class ChatController extends BaseMessageController
      */
     protected function processState(string $state, array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing state:', [
+                'state' => $state,
+                'message' => $message,
+                'session_data' => $sessionData
+            ]);
+        }
+
         // Main menu states
         if (in_array($state, ['WELCOME'])) {
             return $this->processWelcomeInput($message, $sessionData);
@@ -240,6 +265,13 @@ class ChatController extends BaseMessageController
             'CONFIRM_PAYMENT',
             'PIN_VERIFICATION'
         ])) {
+            if (config('app.debug')) {
+                Log::info('Processing bill payment:', [
+                    'state' => $state,
+                    'is_init' => $state === 'BILL_PAYMENT_INIT'
+                ]);
+            }
+
             if ($state === 'BILL_PAYMENT_INIT') {
                 return $this->billPaymentController->handleBillPayment($message, $sessionData);
             }
@@ -266,6 +298,10 @@ class ChatController extends BaseMessageController
             };
         }
 
+        if (config('app.debug')) {
+            Log::warning('Unknown state encountered:', ['state' => $state]);
+        }
+
         return $this->handleUnknownState($message, $sessionData);
     }
 
@@ -277,6 +313,13 @@ class ChatController extends BaseMessageController
         $input = $message['content'];
         $mainMenu = $this->getMenuConfig('main');
 
+        if (config('app.debug')) {
+            Log::info('Processing welcome input:', [
+                'input' => $input,
+                'menu' => $mainMenu
+            ]);
+        }
+
         foreach ($mainMenu as $key => $option) {
             if ($input == $key || strtolower($input) == strtolower($option['text'])) {
                 $this->messageAdapter->updateSession($message['session_id'], [
@@ -287,6 +330,14 @@ class ChatController extends BaseMessageController
                     ]
                 ]);
 
+                if (config('app.debug')) {
+                    Log::info('Menu option selected:', [
+                        'key' => $key,
+                        'option' => $option,
+                        'new_state' => $option['state']
+                    ]);
+                }
+
                 return match ($option['state']) {
                     'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
                     'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
@@ -295,6 +346,10 @@ class ChatController extends BaseMessageController
                     default => $this->handleUnknownState($message, $sessionData)
                 };
             }
+        }
+
+        if (config('app.debug')) {
+            Log::warning('Invalid menu option:', ['input' => $input]);
         }
 
         return $this->formatMenuResponse(
