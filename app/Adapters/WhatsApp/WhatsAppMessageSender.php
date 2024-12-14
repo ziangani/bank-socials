@@ -44,6 +44,19 @@ class WhatsAppMessageSender
 
             $messageId = $options['message_id'] ?? null;
 
+            // Check if this is an interactive message
+            if (isset($options['type']) && $options['type'] === 'interactive') {
+                if ($options['interactive_type'] === 'list' && isset($options['sections'])) {
+                    return $this->whatsAppService->sendWelcomeMenu(
+                        $businessPhoneId,
+                        $recipient,
+                        $messageId,
+                        $message
+                    );
+                }
+            }
+
+            // Handle button messages
             if (isset($options['buttons'])) {
                 return $this->whatsAppService->sendMessageWithButtons(
                     $businessPhoneId,
@@ -54,6 +67,7 @@ class WhatsAppMessageSender
                 );
             }
 
+            // Send regular text message
             return $this->whatsAppService->sendMessage(
                 $businessPhoneId,
                 $recipient,

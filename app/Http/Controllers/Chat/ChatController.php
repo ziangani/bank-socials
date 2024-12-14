@@ -154,19 +154,6 @@ class ChatController extends BaseMessageController
         // Get welcome message response
         $response = $this->handleWelcome($parsedMessage);
 
-        // Send response via message adapter
-        $options = [];
-        if ($response['type'] === 'interactive') {
-            $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
-        }
-        $options['message_id'] = $parsedMessage['message_id'];
-        
-        $this->messageAdapter->sendMessage(
-            $parsedMessage['sender'],
-            $response['message'],
-            $options
-        );
-
         // Format response for channel
         $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
         return response()->json($formattedResponse);
@@ -207,20 +194,67 @@ class ChatController extends BaseMessageController
     protected function handleWelcome(array $message): array
     {
         $contactName = $message['contact_name'] ?? 'there';
-
-        $menuText = "Hello {$contactName}! 👋\n\n";
-        $menuText .= "Welcome to our Social Banking Service. Please select an option:\n\n";
+        $welcomeText = "Hello {$contactName}! 👋\n\nPlease select an option from the menu below:\n";
 
         $mainMenu = $this->getMenuConfig('main');
         
         // Add menu options to the message text
         foreach ($mainMenu as $key => $option) {
-            $menuText .= "{$key}. {$option['text']}\n";
+            $welcomeText .= "{$key}. {$option['text']}\n";
         }
 
-        $menuText .= "\nTo return to this menu at any time, reply with 00.\nTo exit at any time, reply with 000.";
+        $welcomeText .= "\nTo return to this menu at any time, reply with 00.\nTo exit at any time, reply with 000.";
 
-        return $this->formatMenuResponse($menuText, $mainMenu);
+        // Send response with interactive list menu
+        $options = [
+            'message_id' => $message['message_id'],
+            'type' => 'interactive',
+            'interactive_type' => 'list',
+            'business_phone_id' => $message['business_phone_id'] ?? config('whatsapp.business_phone_id'),
+            'sections' => [
+                [
+                    'title' => "Account & Registration",
+                    'rows' => [
+                        [
+                            'id' => "1",
+                            'title' => "Register",
+                            'description' => "Register for a new account"
+                        ],
+                        [
+                            'id' => "4",
+                            'title' => "Account Services",
+                            'description' => "Balance inquiry, statements, and PIN management"
+                        ]
+                    ]
+                ],
+                [
+                    'title' => "Transactions",
+                    'rows' => [
+                        [
+                            'id' => "2",
+                            'title' => "Money Transfer",
+                            'description' => "Send money to bank accounts or mobile money"
+                        ],
+                        [
+                            'id' => "3",
+                            'title' => "Bill Payments",
+                            'description' => "Pay your bills and utilities"
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $this->messageAdapter->sendMessage(
+            $message['sender'],
+            $welcomeText,
+            $options
+        );
+
+        return [
+            'message' => $welcomeText,
+            'type' => 'text'
+        ];
     }
 
     /**
@@ -398,9 +432,7 @@ class ChatController extends BaseMessageController
             Log::warning('Invalid menu option:', ['input' => $input]);
         }
 
-        return $this->formatMenuResponse(
-            "Invalid option. Please select from the menu below:",
-            $mainMenu
-        );
+        // Show welcome menu again for invalid input
+        return $this->handleWelcome($message);
     }
 }

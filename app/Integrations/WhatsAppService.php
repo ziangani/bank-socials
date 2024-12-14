@@ -123,27 +123,32 @@ class WhatsAppService
     {
         $sections = [
             [
-                'title' => "Make payment",
+                'title' => "Account & Registration",
                 'rows' => [
                     [
-                        'id' => "Make payment",
-                        'title' => "Make payment",
-                        'description' => "Make payment via Mobile Money or Credit/Debit Card"
+                        'id' => "1",
+                        'title' => "Register",
+                        'description' => "Register for a new account"
+                    ],
+                    [
+                        'id' => "4",
+                        'title' => "Account Services",
+                        'description' => "Balance inquiry, statements, and PIN management"
                     ]
                 ]
             ],
             [
-                'title' => "Access your history",
+                'title' => "Transactions",
                 'rows' => [
                     [
-                        'id' => "Check statement",
-                        'title' => "View Account Statement",
-                        'description' => "Access your account statement"
+                        'id' => "2",
+                        'title' => "Money Transfer",
+                        'description' => "Send money to bank accounts or mobile money"
                     ],
                     [
-                        'id' => "Check history",
-                        'title' => "View Transaction History",
-                        'description' => "Review your past transactions"
+                        'id' => "3",
+                        'title' => "Bill Payments",
+                        'description' => "Pay your bills and utilities"
                     ]
                 ]
             ]
@@ -166,10 +171,10 @@ class WhatsAppService
                         'text' => $body
                     ],
                     'footer' => [
-                        'text' => "Powered by " . config('app.powered_by')
+                        'text' => "To return to this menu, reply with 00. To exit, reply with 000."
                     ],
                     'action' => [
-                        'button' => "Get Started",
+                        'button' => "Select Option",
                         'sections' => $sections
                     ]
                 ],
