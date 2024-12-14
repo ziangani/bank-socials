@@ -102,23 +102,25 @@ class ChatController extends BaseMessageController
             // Mark message as processed
             $this->messageAdapter->markMessageAsProcessed($parsedMessage['message_id']);
 
-            // Send response via message adapter
-            $options = [];
-            if ($response['type'] === 'interactive')
-                $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
+            // Send response via message adapter if not already sent
+            if (!isset($response['already_sent'])) {
+                $options = [];
+                if ($response['type'] === 'interactive')
+                    $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
 
-            $options['message_id'] = $parsedMessage['message_id'];
-            $this->messageAdapter->sendMessage(
-                $parsedMessage['sender'],
-                $response['message'],
-                $options
-            );
+                $options['message_id'] = $parsedMessage['message_id'];
+                $this->messageAdapter->sendMessage(
+                    $parsedMessage['sender'],
+                    $response['message'],
+                    $options
+                );
 
-            if (config('app.debug')) {
-                Log::info('Response sent:', [
-                    'response' => $response,
-                    'options' => $options
-                ]);
+                if (config('app.debug')) {
+                    Log::info('Response sent:', [
+                        'response' => $response,
+                        'options' => $options
+                    ]);
+                }
             }
 
             // Format response for channel
@@ -253,7 +255,8 @@ class ChatController extends BaseMessageController
 
         return [
             'message' => $welcomeText,
-            'type' => 'text'
+            'type' => 'text',
+            'already_sent' => true // Mark as already sent to avoid duplicate
         ];
     }
 
