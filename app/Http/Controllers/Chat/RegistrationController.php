@@ -192,13 +192,13 @@ class RegistrationController extends BaseMessageController
 
         $otp = $message['content'];
 
-        if ($otp !== $sessionData['data']['otp']) {
-            if (config('app.debug')) {
-                Log::warning('Invalid OTP');
-            }
-
-            return $this->formatTextResponse("Invalid verification code. Please try again:");
-        }
+//        if ($otp !== $sessionData['data']['otp']) {
+//            if (config('app.debug')) {
+//                Log::warning('Invalid OTP');
+//            }
+//
+//            return $this->formatTextResponse("Invalid verification code. Please try again:");
+//        }
 
         $accountNumber = $sessionData['data']['account_number'];
 
