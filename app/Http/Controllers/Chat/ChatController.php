@@ -236,8 +236,24 @@ class ChatController extends BaseMessageController
         }
 
         // Registration states
-        if (in_array($state, ['REGISTRATION_INIT', 'CARD_REGISTRATION', 'ACCOUNT_REGISTRATION'])) {
-            return $this->registrationController->handleRegistration($message, $sessionData);
+        if (in_array($state, [
+            'REGISTRATION_INIT',
+            'CARD_REGISTRATION',
+            'ACCOUNT_REGISTRATION'
+        ])) {
+            if (config('app.debug')) {
+                Log::info('Processing registration:', [
+                    'state' => $state,
+                    'step' => $sessionData['data']['step'] ?? null
+                ]);
+            }
+
+            return match($state) {
+                'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
+                'CARD_REGISTRATION' => $this->registrationController->processCardRegistration($message, $sessionData),
+                'ACCOUNT_REGISTRATION' => $this->registrationController->processAccountRegistration($message, $sessionData),
+                default => $this->handleUnknownState($message, $sessionData)
+            };
         }
 
         // Transfer states
