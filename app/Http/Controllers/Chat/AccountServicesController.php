@@ -27,6 +27,46 @@ class AccountServicesController extends BaseMessageController
             ]);
         }
 
+        // If we have input, process the menu selection
+        if (isset($message['content'])) {
+            $input = $message['content'];
+            $servicesMenu = $this->getMenuConfig('account_services');
+
+            // Check if input matches a menu option
+            if (isset($servicesMenu[$input])) {
+                $selectedOption = $servicesMenu[$input];
+
+                // Update session state to the selected service
+                $this->messageAdapter->updateSession($message['session_id'], [
+                    'state' => $selectedOption['state'],
+                    'data' => [
+                        ...$sessionData['data'] ?? [],
+                        'last_message' => $input,
+                        'selected_option' => $input
+                    ]
+                ]);
+
+                // Route to appropriate handler based on selection
+                return match($selectedOption['state']) {
+                    'BALANCE_INQUIRY' => $this->processBalanceInquiry($message, $sessionData),
+                    'MINI_STATEMENT' => $this->processMiniStatement($message, $sessionData),
+                    'FULL_STATEMENT' => $this->processFullStatement($message, $sessionData),
+                    'PIN_MANAGEMENT' => $this->processPINManagement($message, $sessionData),
+                    default => $this->formatMenuResponse(
+                        "Invalid selection. Please select a service:\n\n",
+                        $servicesMenu
+                    )
+                };
+            }
+
+            // Invalid selection, show menu again
+            return $this->formatMenuResponse(
+                "Invalid selection. Please select a service:\n\n",
+                $servicesMenu
+            );
+        }
+
+        // No input, show initial menu
         return $this->formatMenuResponse(
             "Please select a service:\n\n",
             $this->getMenuConfig('account_services')
