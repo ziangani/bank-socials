@@ -30,10 +30,10 @@ return [
     ],
 
     'transactions' => [
-        'default_currency' => env('DEFAULT_CURRENCY', 'KES'),
+        'default_currency' => env('DEFAULT_CURRENCY', 'MWK'),
         'min_amount' => env('MIN_TRANSACTION_AMOUNT', 10),
         'max_amount' => env('MAX_TRANSACTION_AMOUNT', 150000),
-        
+
         'limits' => [
             'standard' => [
                 'daily' => env('STANDARD_DAILY_LIMIT', 300000),
