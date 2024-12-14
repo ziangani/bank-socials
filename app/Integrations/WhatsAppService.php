@@ -171,7 +171,7 @@ class WhatsAppService
                         'text' => $body
                     ],
                     'footer' => [
-                        'text' => "To return to this menu, reply with 00. To exit, reply with 000."
+                        'text' => "Reply: 00 for menu, 000 to exit"
                     ],
                     'action' => [
                         'button' => "Select Option",
@@ -182,8 +182,13 @@ class WhatsAppService
                     'message_id' => $messageId,
                 ],
             ]);
-        if ($res->status() != 200)
-            throw new \Exception('Failed to send welcome menu' . $res->body());
+
+        if ($res->status() != 200) {
+            Log::error('Failed to send welcome menu', ['response' => $res->json()]);
+            throw new \Exception('Failed to send welcome menu: ' . $res->body());
+        }
+
+        return true;
     }
 
 }
