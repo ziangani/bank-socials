@@ -16,6 +16,13 @@ class TransferController extends BaseMessageController
 
     public function handleTransfer(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Initializing transfer menu:', [
+                'message' => $message,
+                'session' => $sessionData
+            ]);
+        }
+
         return $this->formatMenuResponse(
             "Please select transfer type:\n\n",
             $this->getMenuConfig('transfer')
@@ -24,6 +31,13 @@ class TransferController extends BaseMessageController
 
     public function processInternalTransfer(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing internal transfer:', [
+                'message' => $message,
+                'session' => $sessionData
+            ]);
+        }
+
         $currentStep = $sessionData['data']['step'] ?? null;
         
         return match($currentStep) {
@@ -31,12 +45,19 @@ class TransferController extends BaseMessageController
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_TRANSFER'] => $this->processTransferConfirmation($message, $sessionData),
             self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
-            default => $this->initializeTransfer($message, 'internal')
+            default => $this->initializeTransfer($message, $sessionData, 'internal')
         };
     }
 
     public function processBankTransfer(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing bank transfer:', [
+                'message' => $message,
+                'session' => $sessionData
+            ]);
+        }
+
         $currentStep = $sessionData['data']['step'] ?? null;
         
         return match($currentStep) {
@@ -44,12 +65,19 @@ class TransferController extends BaseMessageController
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_TRANSFER'] => $this->processTransferConfirmation($message, $sessionData),
             self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
-            default => $this->initializeTransfer($message, 'bank')
+            default => $this->initializeTransfer($message, $sessionData, 'bank')
         };
     }
 
     public function processMobileMoneyTransfer(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing mobile money transfer:', [
+                'message' => $message,
+                'session' => $sessionData
+            ]);
+        }
+
         $currentStep = $sessionData['data']['step'] ?? null;
         
         return match($currentStep) {
@@ -57,15 +85,28 @@ class TransferController extends BaseMessageController
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_TRANSFER'] => $this->processTransferConfirmation($message, $sessionData),
             self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
-            default => $this->initializeTransfer($message, 'mobile')
+            default => $this->initializeTransfer($message, $sessionData, 'mobile')
         };
     }
 
-    protected function initializeTransfer(array $message, string $type): array
+    protected function initializeTransfer(array $message, array $sessionData, string $type): array
     {
-        // Update session with initial transfer data
+        if (config('app.debug')) {
+            Log::info('Initializing transfer:', [
+                'type' => $type,
+                'session' => $sessionData
+            ]);
+        }
+
+        // Update session with initial transfer data while preserving session data
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => match($type) {
+                'internal' => 'INTERNAL_TRANSFER',
+                'bank' => 'BANK_TRANSFER',
+                'mobile' => 'MOBILE_MONEY_TRANSFER'
+            },
             'data' => [
+                ...$sessionData['data'] ?? [], // Preserve existing session data
                 'transfer_type' => $type,
                 'step' => self::STATES['RECIPIENT_INPUT']
             ]
@@ -82,15 +123,31 @@ class TransferController extends BaseMessageController
 
     protected function processRecipientInput(array $message, array $sessionData, string $type): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing recipient input:', [
+                'recipient' => $message['content'],
+                'type' => $type,
+                'session' => $sessionData
+            ]);
+        }
+
         $recipient = $message['content'];
         
         // Validate recipient based on type
         if (!$this->validateRecipient($recipient, $type)) {
+            if (config('app.debug')) {
+                Log::warning('Invalid recipient format:', [
+                    'recipient' => $recipient,
+                    'type' => $type
+                ]);
+            }
+
             return $this->formatTextResponse("Invalid recipient format. Please try again.");
         }
 
-        // Update session with recipient
+        // Update session with recipient while preserving state
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => $sessionData['state'], // Maintain current state
             'data' => [
                 ...$sessionData['data'],
                 'recipient' => $recipient,
@@ -103,15 +160,27 @@ class TransferController extends BaseMessageController
 
     protected function processAmountInput(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing amount input:', [
+                'amount' => $message['content'],
+                'session' => $sessionData
+            ]);
+        }
+
         $amount = $message['content'];
         
         // Validate amount
         if (!$this->validateAmount($amount)) {
+            if (config('app.debug')) {
+                Log::warning('Invalid amount:', ['amount' => $amount]);
+            }
+
             return $this->formatTextResponse("Invalid amount. Please enter a valid number:");
         }
 
-        // Update session with amount
+        // Update session with amount while preserving state
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => $sessionData['state'], // Maintain current state
             'data' => [
                 ...$sessionData['data'],
                 'amount' => $amount,
@@ -133,16 +202,32 @@ class TransferController extends BaseMessageController
 
     protected function processTransferConfirmation(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing transfer confirmation:', [
+                'response' => $message['content'],
+                'session' => $sessionData
+            ]);
+        }
+
         $response = $message['content'];
 
         if ($response === '2' || strtolower($response) === 'cancel') {
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'WELCOME'
             ]);
+
+            if (config('app.debug')) {
+                Log::info('Transfer cancelled, returning to welcome state');
+            }
+
             return $this->formatTextResponse("Transfer cancelled. Reply with 00 to return to main menu.");
         }
 
         if ($response !== '1' && strtolower($response) !== 'confirm') {
+            if (config('app.debug')) {
+                Log::warning('Invalid confirmation response:', ['response' => $response]);
+            }
+
             return $this->formatMenuResponse(
                 "Invalid response. Please confirm or cancel the transfer:",
                 [
@@ -152,8 +237,9 @@ class TransferController extends BaseMessageController
             );
         }
 
-        // Update session for PIN verification
+        // Update session for PIN verification while preserving state
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => $sessionData['state'], // Maintain current state
             'data' => [
                 ...$sessionData['data'],
                 'step' => self::STATES['PIN_VERIFICATION']
@@ -165,10 +251,20 @@ class TransferController extends BaseMessageController
 
     protected function processPinVerification(array $message, array $sessionData): array
     {
+        if (config('app.debug')) {
+            Log::info('Processing PIN verification:', [
+                'session' => $sessionData
+            ]);
+        }
+
         $pin = $message['content'];
 
         // Simulate PIN verification (replace with actual verification logic)
         if (strlen($pin) !== 4 || !is_numeric($pin)) {
+            if (config('app.debug')) {
+                Log::warning('Invalid PIN format');
+            }
+
             return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
         }
 
@@ -184,6 +280,10 @@ class TransferController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'WELCOME'
         ]);
+
+        if (config('app.debug')) {
+            Log::info('Transfer successful, session reset to welcome state');
+        }
 
         return $this->formatTextResponse($successMsg . "\n\nReply with 00 to return to main menu.");
     }
