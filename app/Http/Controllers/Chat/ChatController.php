@@ -238,7 +238,6 @@ class ChatController extends BaseMessageController
         // Registration states
         if (in_array($state, [
             'REGISTRATION_INIT',
-            'CARD_REGISTRATION',
             'ACCOUNT_REGISTRATION'
         ])) {
             if (config('app.debug')) {
@@ -250,7 +249,6 @@ class ChatController extends BaseMessageController
 
             return match($state) {
                 'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
-                'CARD_REGISTRATION' => $this->registrationController->processCardRegistration($message, $sessionData),
                 'ACCOUNT_REGISTRATION' => $this->registrationController->processAccountRegistration($message, $sessionData),
                 default => $this->handleUnknownState($message, $sessionData)
             };

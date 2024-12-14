@@ -65,48 +65,21 @@ class WelcomeController extends Controller
     {
         $menuText = "Hello {$contactName}! 👋\n\n";
         $menuText .= "Welcome to our Social Banking Service. To get started, you'll need to register first.\n\n";
-        $menuText .= "How would you like to register?\n\n";
-        $menuText .= "1. Register with Card\n";
-        $menuText .= "2. Register with Account\n";
-        $menuText .= "3. Learn More\n";
-        $menuText .= "4. Help";
+        $menuText .= "Please select an option:\n\n";
+        $menuText .= "1. Register with Account\n";
+        $menuText .= "2. Learn More\n";
+        $menuText .= "3. Help";
 
         return [
             'message' => $menuText,
             'type' => 'interactive',
             'buttons' => [
-                '1' => 'Register with Card',
-                '2' => 'Register with Account',
-                '3' => 'Learn More',
-                '4' => 'Help'
+                '1' => 'Register with Account',
+                '2' => 'Learn More',
+                '3' => 'Help'
             ],
             'end_session' => false
         ];
-    }
-
-    /**
-     * Handle card registration
-     */
-    public function handleCardRegistration(array $message, array $sessionData): array
-    {
-        $state = $sessionData['state'] ?? 'INIT';
-        $data = $sessionData['data'] ?? [];
-
-        return match($state) {
-            'INIT' => [
-                'message' => "Please enter your 16-digit card number:",
-                'type' => 'text',
-                'end_session' => false
-            ],
-            'CARD_ENTERED' => $this->validateCard($message['content'], $data),
-            'CARD_VALIDATED' => $this->requestExpiryDate($message['content'], $data),
-            'EXPIRY_ENTERED' => $this->validateExpiryDate($message['content'], $data),
-            'EXPIRY_VALIDATED' => $this->requestCVV($message['content'], $data),
-            'CVV_ENTERED' => $this->validateCVV($message['content'], $data),
-            'CVV_VALIDATED' => $this->requestOTP($message['content'], $data),
-            'OTP_ENTERED' => $this->validateOTP($message['content'], $data),
-            default => $this->handleUnknownState()
-        };
     }
 
     /**
@@ -139,98 +112,6 @@ class WelcomeController extends Controller
     {
         // TODO: Implement actual user registration check
         return false;
-    }
-
-    /**
-     * Validate card number
-     */
-    protected function validateCard(string $cardNumber, array $data): array
-    {
-        // Remove spaces and non-numeric characters
-        $cardNumber = preg_replace('/\D/', '', $cardNumber);
-
-        if (strlen($cardNumber) !== 16) {
-            return [
-                'message' => "Invalid card number. Please enter a valid 16-digit card number:",
-                'type' => 'text',
-                'end_session' => false
-            ];
-        }
-
-        // TODO: Implement actual card validation logic
-
-        return [
-            'message' => "Please enter card expiry date (MM/YY):",
-            'type' => 'text',
-            'end_session' => false
-        ];
-    }
-
-    /**
-     * Request expiry date
-     */
-    protected function requestExpiryDate(string $input, array $data): array
-    {
-        return [
-            'message' => "Please enter card expiry date (MM/YY):",
-            'type' => 'text',
-            'end_session' => false
-        ];
-    }
-
-    /**
-     * Validate expiry date
-     */
-    protected function validateExpiryDate(string $expiry, array $data): array
-    {
-        if (!preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $expiry)) {
-            return [
-                'message' => "Invalid expiry date. Please enter in MM/YY format:",
-                'type' => 'text',
-                'end_session' => false
-            ];
-        }
-
-        return [
-            'message' => "Please enter the 3-digit CVV number from the back of your card:",
-            'type' => 'text',
-            'end_session' => false
-        ];
-    }
-
-    /**
-     * Request CVV
-     */
-    protected function requestCVV(string $input, array $data): array
-    {
-        return [
-            'message' => "Please enter the 3-digit CVV number from the back of your card:",
-            'type' => 'text',
-            'end_session' => false
-        ];
-    }
-
-    /**
-     * Validate CVV
-     */
-    protected function validateCVV(string $cvv, array $data): array
-    {
-        if (!preg_match('/^[0-9]{3}$/', $cvv)) {
-            return [
-                'message' => "Invalid CVV. Please enter the 3-digit number from the back of your card:",
-                'type' => 'text',
-                'end_session' => false
-            ];
-        }
-
-        // Generate and send OTP
-        $otp = $this->generateAndSendOTP($data);
-
-        return [
-            'message' => "A one-time PIN has been sent to your registered mobile number. Please enter it:",
-            'type' => 'text',
-            'end_session' => false
-        ];
     }
 
     /**

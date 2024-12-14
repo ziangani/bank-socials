@@ -10,32 +10,6 @@ use Illuminate\Support\Facades\Log;
 class AuthenticationService extends BaseService
 {
     /**
-     * Handle card-based registration
-     */
-    public function registerWithCard(array $data): array
-    {
-        try {
-            // Validate card details
-            $cardValidation = $this->validateCardDetails($data);
-            if ($cardValidation['status'] !== GeneralStatus::SUCCESS) {
-                return $cardValidation;
-            }
-
-            // Generate and send OTP
-            $otp = $this->generateOTP($data['phone_number']);
-            $this->sendOTP($data['phone_number'], $otp);
-
-            return $this->returnSuccess('OTP sent successfully', [
-                'requires_otp' => true,
-                'reference' => $this->generateReference('REG')
-            ]);
-
-        } catch (\Exception $e) {
-            return $this->logAndReturnError('Card registration failed', $e);
-        }
-    }
-
-    /**
      * Handle account-based registration
      */
     public function registerWithAccount(array $data): array
@@ -207,45 +181,6 @@ class AuthenticationService extends BaseService
     }
 
     /**
-     * Validate card details
-     */
-    protected function validateCardDetails(array $data): array
-    {
-        // Remove spaces and non-numeric characters
-        $cardNumber = preg_replace('/\D/', '', $data['card_number']);
-
-        if (strlen($cardNumber) !== 16) {
-            return [
-                'status' => GeneralStatus::ERROR,
-                'message' => 'Invalid card number'
-            ];
-        }
-
-        // Validate expiry date
-        if (!preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $data['expiry'])) {
-            return [
-                'status' => GeneralStatus::ERROR,
-                'message' => 'Invalid expiry date'
-            ];
-        }
-
-        // Validate CVV
-        if (!preg_match('/^[0-9]{3}$/', $data['cvv'])) {
-            return [
-                'status' => GeneralStatus::ERROR,
-                'message' => 'Invalid CVV'
-            ];
-        }
-
-        // TODO: Implement actual card validation with payment provider
-
-        return [
-            'status' => GeneralStatus::SUCCESS,
-            'message' => 'Card details validated successfully'
-        ];
-    }
-
-    /**
      * Validate account details
      */
     protected function validateAccountDetails(array $data): array
@@ -283,9 +218,8 @@ class AuthenticationService extends BaseService
         $user->name = $data['name'];
         $user->phone_number = $this->formatPhoneNumber($data['phone_number']);
         $user->email = $data['email'] ?? null;
-        $user->account_number = $data['account_number'] ?? null;
-        $user->card_number = $data['card_number'] ?? null;
-        $user->id_number = $data['id_number'] ?? null;
+        $user->account_number = $data['account_number'];
+        $user->id_number = $data['id_number'];
         $user->status = 'active';
         $user->save();
 

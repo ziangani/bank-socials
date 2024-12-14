@@ -26,11 +26,6 @@ return [
 
     'registration' => [
         '1' => [
-            'text' => 'Card Registration',
-            'function' => 'handleCardRegistration',
-            'state' => 'CARD_REGISTRATION'
-        ],
-        '2' => [
             'text' => 'Account Registration',
             'function' => 'handleAccountRegistration',
             'state' => 'ACCOUNT_REGISTRATION'

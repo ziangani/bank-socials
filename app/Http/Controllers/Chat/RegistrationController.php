@@ -8,8 +8,6 @@ class RegistrationController extends BaseMessageController
 {
     // Registration flow states
     const STATES = [
-        'REGISTRATION_TYPE_SELECTION' => 'REGISTRATION_TYPE_SELECTION',
-        'CARD_NUMBER_INPUT' => 'CARD_NUMBER_INPUT',
         'ACCOUNT_NUMBER_INPUT' => 'ACCOUNT_NUMBER_INPUT',
         'PIN_SETUP' => 'PIN_SETUP',
         'CONFIRM_PIN' => 'CONFIRM_PIN',
@@ -26,126 +24,16 @@ class RegistrationController extends BaseMessageController
             ]);
         }
 
-        // Get registration menu
-        $registrationMenu = $this->getMenuConfig('registration');
-
-        // Check if this is a menu selection
-        if (isset($sessionData['data']['step']) && $sessionData['data']['step'] === self::STATES['REGISTRATION_TYPE_SELECTION']) {
-            $selection = $message['content'];
-
-            if (config('app.debug')) {
-                Log::info('Processing registration type selection:', [
-                    'selection' => $selection,
-                    'menu' => $registrationMenu
-                ]);
-            }
-
-            // Process menu selection
-            foreach ($registrationMenu as $key => $option) {
-                if ($selection == $key) {
-                    // Update session with selected registration type
-                    $this->messageAdapter->updateSession($message['session_id'], [
-                        'state' => $option['state']
-                    ]);
-
-                    if (config('app.debug')) {
-                        Log::info('Selected registration type:', [
-                            'type' => $option['state']
-                        ]);
-                    }
-
-                    // Route to appropriate registration flow
-                    return match($option['state']) {
-                        'CARD_REGISTRATION' => $this->initializeCardRegistration($message, $sessionData),
-                        'ACCOUNT_REGISTRATION' => $this->initializeAccountRegistration($message, $sessionData),
-                        default => $this->handleUnknownState($message, $sessionData)
-                    };
-                }
-            }
-
-            // Invalid selection
-            if (config('app.debug')) {
-                Log::warning('Invalid registration type selection:', [
-                    'selection' => $selection
-                ]);
-            }
-
-            return $this->formatMenuResponse(
-                "Invalid selection. Please select registration type:\n\n",
-                $registrationMenu
-            );
-        }
-
-        // Initialize registration with type selection
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'REGISTRATION_INIT',
-            'data' => [
-                ...$sessionData['data'] ?? [],
-                'step' => self::STATES['REGISTRATION_TYPE_SELECTION']
-            ]
-        ]);
-
-        return $this->formatMenuResponse(
-            "Please select registration type:\n\n",
-            $registrationMenu
-        );
-    }
-
-    protected function initializeCardRegistration(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Initializing card registration');
-        }
-
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'CARD_REGISTRATION',
-            'data' => [
-                ...$sessionData['data'] ?? [],
-                'registration_type' => 'card',
-                'step' => self::STATES['CARD_NUMBER_INPUT']
-            ]
-        ]);
-
-        return $this->formatTextResponse("Please enter your 16-digit card number:");
-    }
-
-    protected function initializeAccountRegistration(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Initializing account registration');
-        }
-
+        // Initialize account registration directly
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
             'data' => [
                 ...$sessionData['data'] ?? [],
-                'registration_type' => 'account',
                 'step' => self::STATES['ACCOUNT_NUMBER_INPUT']
             ]
         ]);
 
         return $this->formatTextResponse("Please enter your account number:");
-    }
-
-    public function processCardRegistration(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing card registration:', [
-                'message' => $message,
-                'session' => $sessionData
-            ]);
-        }
-
-        $currentStep = $sessionData['data']['step'] ?? null;
-
-        return match($currentStep) {
-            self::STATES['CARD_NUMBER_INPUT'] => $this->processCardNumberInput($message, $sessionData),
-            self::STATES['PIN_SETUP'] => $this->processPinSetup($message, $sessionData),
-            self::STATES['CONFIRM_PIN'] => $this->processConfirmPin($message, $sessionData),
-            self::STATES['PHONE_NUMBER_INPUT'] => $this->processPhoneNumberInput($message, $sessionData),
-            self::STATES['OTP_VERIFICATION'] => $this->processOtpVerification($message, $sessionData),
-            default => $this->initializeCardRegistration($message, $sessionData)
-        };
     }
 
     public function processAccountRegistration(array $message, array $sessionData): array
@@ -165,39 +53,8 @@ class RegistrationController extends BaseMessageController
             self::STATES['CONFIRM_PIN'] => $this->processConfirmPin($message, $sessionData),
             self::STATES['PHONE_NUMBER_INPUT'] => $this->processPhoneNumberInput($message, $sessionData),
             self::STATES['OTP_VERIFICATION'] => $this->processOtpVerification($message, $sessionData),
-            default => $this->initializeAccountRegistration($message, $sessionData)
+            default => $this->handleRegistration($message, $sessionData)
         };
-    }
-
-    protected function processCardNumberInput(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing card number input:', [
-                'card_number' => str_repeat('*', strlen($message['content'])),
-                'session' => $sessionData
-            ]);
-        }
-
-        $cardNumber = $message['content'];
-
-        if (!$this->validateCardNumber($cardNumber)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid card number format');
-            }
-
-            return $this->formatTextResponse("Invalid card number. Please enter a valid 16-digit card number:");
-        }
-
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'CARD_REGISTRATION',
-            'data' => [
-                ...$sessionData['data'],
-                'card_number' => $cardNumber,
-                'step' => self::STATES['PIN_SETUP']
-            ]
-        ]);
-
-        return $this->formatTextResponse("Please set up your PIN (4 digits):");
     }
 
     protected function processAccountNumberInput(array $message, array $sessionData): array
@@ -343,11 +200,7 @@ class RegistrationController extends BaseMessageController
             return $this->formatTextResponse("Invalid verification code. Please try again:");
         }
 
-        // Simulate registration completion (replace with actual implementation)
-        $registrationType = $sessionData['data']['registration_type'];
-        $identifier = $registrationType === 'card' ? 
-            $sessionData['data']['card_number'] : 
-            $sessionData['data']['account_number'];
+        $accountNumber = $sessionData['data']['account_number'];
 
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -360,14 +213,9 @@ class RegistrationController extends BaseMessageController
 
         return $this->formatTextResponse(
             "Registration successful! ✅\n\n" .
-            "Your {$registrationType} (*" . substr($identifier, -4) . ") has been registered.\n\n" .
+            "Your account (*" . substr($accountNumber, -4) . ") has been registered.\n\n" .
             "Reply with 00 to return to main menu."
         );
-    }
-
-    protected function validateCardNumber(string $cardNumber): bool
-    {
-        return preg_match('/^\d{16}$/', $cardNumber);
     }
 
     protected function validateAccountNumber(string $accountNumber): bool
