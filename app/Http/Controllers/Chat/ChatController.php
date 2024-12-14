@@ -341,7 +341,7 @@ class ChatController extends BaseMessageController
         }
 
         // Bill payment states
-        if ($state === 'BILL_PAYMENT_INIT' || isset($sessionData['data']['step'])) {
+        if ($state === 'BILL_PAYMENT_INIT') {
             if (config('app.debug')) {
                 Log::info('Processing bill payment:', [
                     'state' => $state,
@@ -349,13 +349,7 @@ class ChatController extends BaseMessageController
                 ]);
             }
 
-            // If we're in a bill payment step, process it
-            if (isset($sessionData['data']['step'])) {
-                return $this->billPaymentController->processBillPayment($message, $sessionData);
-            }
-
-            // Otherwise, initialize bill payment
-            return $this->billPaymentController->handleBillPayment($message, $sessionData);
+            return $this->billPaymentController->processBillPayment($message, $sessionData);
         }
 
         // Account services states

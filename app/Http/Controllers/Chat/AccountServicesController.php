@@ -40,7 +40,6 @@ class AccountServicesController extends BaseMessageController
                 $this->messageAdapter->updateSession($message['session_id'], [
                     'state' => $selectedOption['state'],
                     'data' => [
-                        ...$sessionData['data'] ?? [],
                         'last_message' => $input,
                         'selected_option' => $input
                     ]
@@ -92,7 +91,6 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'BALANCE_INQUIRY',
             'data' => [
-                ...$sessionData['data'] ?? [],
                 'step' => self::STATES['PIN_VERIFICATION']
             ]
         ]);
@@ -157,7 +155,6 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'MINI_STATEMENT',
             'data' => [
-                ...$sessionData['data'] ?? [],
                 'step' => self::STATES['PIN_VERIFICATION']
             ]
         ]);
@@ -232,7 +229,6 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'FULL_STATEMENT',
             'data' => [
-                ...$sessionData['data'] ?? [],
                 'step' => self::STATES['PIN_VERIFICATION']
             ]
         ]);
@@ -261,7 +257,6 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'FULL_STATEMENT',
             'data' => [
-                ...$sessionData['data'],
                 'step' => self::STATES['START_DATE_INPUT']
             ]
         ]);
@@ -291,7 +286,6 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'FULL_STATEMENT',
             'data' => [
-                ...$sessionData['data'],
                 'start_date' => $startDate,
                 'step' => self::STATES['END_DATE_INPUT']
             ]
@@ -366,10 +360,10 @@ class AccountServicesController extends BaseMessageController
             Log::info('Initializing PIN management');
         }
 
+        // Only keep essential session data, removing any previous step information
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'PIN_MANAGEMENT',
             'data' => [
-                ...$sessionData['data'] ?? [],
                 'step' => self::STATES['PIN_MANAGEMENT_SELECTION']
             ]
         ]);
@@ -413,7 +407,6 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'PIN_MANAGEMENT',
             'data' => [
-                ...$sessionData['data'],
                 'pin_action' => $selection,
                 'step' => self::STATES['CURRENT_PIN_INPUT']
             ]
@@ -443,7 +436,7 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'PIN_MANAGEMENT',
             'data' => [
-                ...$sessionData['data'],
+                'pin_action' => $sessionData['data']['pin_action'],
                 'step' => self::STATES['NEW_PIN_INPUT']
             ]
         ]);
@@ -472,7 +465,7 @@ class AccountServicesController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'PIN_MANAGEMENT',
             'data' => [
-                ...$sessionData['data'],
+                'pin_action' => $sessionData['data']['pin_action'],
                 'new_pin' => $newPin,
                 'step' => self::STATES['CONFIRM_NEW_PIN']
             ]
