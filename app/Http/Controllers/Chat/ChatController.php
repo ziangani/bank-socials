@@ -261,6 +261,36 @@ class ChatController extends BaseMessageController
             'BANK_TRANSFER', 
             'MOBILE_MONEY_TRANSFER'
         ])) {
+            // If we're in TRANSFER_INIT state and have a menu selection
+            if ($state === 'TRANSFER_INIT' && isset($message['content'])) {
+                $transferMenu = $this->getMenuConfig('transfer');
+                $selection = $message['content'];
+
+                foreach ($transferMenu as $key => $option) {
+                    if ($selection == $key) {
+                        // Update session with selected transfer type
+                        $this->messageAdapter->updateSession($message['session_id'], [
+                            'state' => $option['state']
+                        ]);
+
+                        // Route to appropriate transfer handler
+                        return match($option['state']) {
+                            'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
+                            'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
+                            'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
+                            default => $this->handleUnknownState($message, $sessionData)
+                        };
+                    }
+                }
+
+                // Invalid selection
+                return $this->formatMenuResponse(
+                    "Invalid selection. Please select transfer type:\n\n",
+                    $transferMenu
+                );
+            }
+
+            // Process based on current transfer state
             return match ($state) {
                 'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
                 'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
