@@ -232,7 +232,14 @@ class ChatController extends BaseMessageController
         }
 
         // Bill payment states
-        if (in_array($state, ['BILL_PAYMENT_INIT'])) {
+        if (in_array($state, [
+            'BILL_PAYMENT_INIT',
+            'BILL_TYPE_SELECTION',
+            'ACCOUNT_INPUT',
+            'AMOUNT_INPUT',
+            'CONFIRM_PAYMENT',
+            'PIN_VERIFICATION'
+        ])) {
             if ($state === 'BILL_PAYMENT_INIT') {
                 return $this->billPaymentController->handleBillPayment($message, $sessionData);
             }
