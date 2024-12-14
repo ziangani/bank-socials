@@ -143,11 +143,20 @@ class ChatController extends BaseMessageController
      */
     protected function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
-        // Update session state to WELCOME
+        // End current session and create a new clean session
         if ($parsedMessage['session_id']) {
-            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+            // First end the current session
+            $this->messageAdapter->endSession($parsedMessage['session_id']);
+            
+            // Create a new clean session
+            $this->messageAdapter->createSession([
+                'session_id' => $parsedMessage['session_id'],
+                'sender' => $parsedMessage['sender'],
                 'state' => 'WELCOME',
                 'data' => [
+                    'session_id' => $parsedMessage['session_id'],
+                    'message_id' => $parsedMessage['message_id'],
+                    'sender' => $parsedMessage['sender'],
                     'last_message' => '00'
                 ]
             ]);
