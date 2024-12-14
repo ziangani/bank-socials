@@ -52,9 +52,11 @@ class BillPaymentController extends BaseMessageController
             ]);
         }
 
-        // Initialize bill payment flow with bill type selection
+        // Initialize bill payment flow with bill type selection while preserving session data
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'BILL_PAYMENT_INIT', // Ensure state is set
             'data' => [
+                ...$sessionData['data'] ?? [], // Preserve existing session data
                 'step' => self::STATES['BILL_TYPE_SELECTION']
             ]
         ]);
@@ -125,8 +127,9 @@ class BillPaymentController extends BaseMessageController
 
         $billType = self::BILL_TYPES[$selection];
         
-        // Update session with bill type
+        // Update session with bill type while preserving session data
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
             'data' => [
                 ...$sessionData['data'],
                 'bill_type' => $billType,
@@ -181,6 +184,7 @@ class BillPaymentController extends BaseMessageController
 
         // For variable amount bills, proceed to amount input
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
             'data' => [
                 ...$sessionData['data'],
                 'account_number' => $accountNumber,
@@ -236,6 +240,7 @@ class BillPaymentController extends BaseMessageController
 
         // Update session with amount and move to confirmation
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
             'data' => [
                 ...$sessionData['data'],
                 'amount' => $amount,
@@ -301,6 +306,7 @@ class BillPaymentController extends BaseMessageController
 
         // Update session for PIN verification
         $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
             'data' => [
                 ...$sessionData['data'],
                 'step' => self::STATES['PIN_VERIFICATION']

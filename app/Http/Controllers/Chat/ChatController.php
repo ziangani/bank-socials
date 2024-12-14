@@ -257,25 +257,21 @@ class ChatController extends BaseMessageController
         }
 
         // Bill payment states
-        if (in_array($state, [
-            'BILL_PAYMENT_INIT',
-            'BILL_TYPE_SELECTION',
-            'ACCOUNT_INPUT',
-            'AMOUNT_INPUT',
-            'CONFIRM_PAYMENT',
-            'PIN_VERIFICATION'
-        ])) {
+        if ($state === 'BILL_PAYMENT_INIT' || isset($sessionData['data']['step'])) {
             if (config('app.debug')) {
                 Log::info('Processing bill payment:', [
                     'state' => $state,
-                    'is_init' => $state === 'BILL_PAYMENT_INIT'
+                    'step' => $sessionData['data']['step'] ?? null
                 ]);
             }
 
-            if ($state === 'BILL_PAYMENT_INIT') {
-                return $this->billPaymentController->handleBillPayment($message, $sessionData);
+            // If we're in a bill payment step, process it
+            if (isset($sessionData['data']['step'])) {
+                return $this->billPaymentController->processBillPayment($message, $sessionData);
             }
-            return $this->billPaymentController->processBillPayment($message, $sessionData);
+
+            // Otherwise, initialize bill payment
+            return $this->billPaymentController->handleBillPayment($message, $sessionData);
         }
 
         // Account services states
