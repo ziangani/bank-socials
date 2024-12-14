@@ -113,9 +113,9 @@ class TransferController extends BaseMessageController
         ]);
 
         $prompts = [
-            'internal' => "Please enter recipient's account number:",
-            'bank' => "Please enter recipient's bank account number:",
-            'mobile' => "Please enter recipient's mobile number:"
+            'internal' => "Please enter recipient's account number (10 digits):",
+            'bank' => "Please enter recipient's bank account number (10 digits):",
+            'mobile' => "Please enter recipient's mobile number (format: 07XXXXXXXX):"
         ];
 
         return $this->formatTextResponse($prompts[$type]);
@@ -142,7 +142,13 @@ class TransferController extends BaseMessageController
                 ]);
             }
 
-            return $this->formatTextResponse("Invalid recipient format. Please try again.");
+            $errorMessages = [
+                'internal' => "Invalid format. Please enter a 10-digit account number:",
+                'bank' => "Invalid format. Please enter a 10-digit bank account number:",
+                'mobile' => "Invalid format. Please enter a valid mobile number (07XXXXXXXX):"
+            ];
+
+            return $this->formatTextResponse($errorMessages[$type]);
         }
 
         // Update session with recipient while preserving state
@@ -246,7 +252,7 @@ class TransferController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your PIN to complete the transfer:");
+        return $this->formatTextResponse("Please enter your PIN (4 digits) to complete the transfer:");
     }
 
     protected function processPinVerification(array $message, array $sessionData): array
@@ -311,16 +317,20 @@ class TransferController extends BaseMessageController
             'mobile' => 'mobile money transfer'
         ];
 
+        $currency = config('social-banking.currency', 'KES');
+
         return "Please confirm {$typeLabels[$type]}:\n\n" .
                "Recipient: {$recipient}\n" .
-               "Amount: KES {$amount}\n\n" .
+               "Amount: {$currency} {$amount}\n\n" .
                "Select an option:";
     }
 
     protected function formatSuccessMessage(string $type, string $recipient, string $amount): string
     {
+        $currency = config('social-banking.currency', 'KES');
+
         return "Transfer successful! ✅\n\n" .
-               "Amount: KES {$amount}\n" .
+               "Amount: {$currency} {$amount}\n" .
                "Recipient: {$recipient}\n" .
                "Reference: " . $this->generateReference();
     }

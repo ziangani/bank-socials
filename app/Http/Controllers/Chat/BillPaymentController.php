@@ -21,24 +21,28 @@ class BillPaymentController extends BaseMessageController
             'name' => 'Electricity',
             'code' => 'KPLC',
             'pattern' => '/^\d{6}$/',
+            'length' => '6',
             'fixed_amount' => false
         ],
         '2' => [
             'name' => 'Water',
             'code' => 'WATER',
             'pattern' => '/^\d{8}$/',
+            'length' => '8',
             'fixed_amount' => false
         ],
         '3' => [
             'name' => 'TV Subscription',
             'code' => 'TV',
             'pattern' => '/^\d{10}$/',
+            'length' => '10',
             'fixed_amount' => true
         ],
         '4' => [
             'name' => 'Internet',
             'code' => 'NET',
             'pattern' => '/^\d{8}$/',
+            'length' => '8',
             'fixed_amount' => true
         ]
     ];
@@ -144,7 +148,7 @@ class BillPaymentController extends BaseMessageController
             ]);
         }
 
-        return $this->formatTextResponse("Please enter your {$billType['name']} account number:");
+        return $this->formatTextResponse("Please enter your {$billType['name']} account number ({$billType['length']} digits):");
     }
 
     protected function processAccountInput(array $message, array $sessionData): array
@@ -169,7 +173,7 @@ class BillPaymentController extends BaseMessageController
             }
 
             return $this->formatTextResponse(
-                "Invalid account number format for {$billType['name']}. Please try again:"
+                "Invalid account number format. Please enter a {$billType['length']}-digit account number for {$billType['name']}:"
             );
         }
 
@@ -237,6 +241,7 @@ class BillPaymentController extends BaseMessageController
 
         $billType = $sessionData['data']['bill_type'];
         $accountNumber = $sessionData['data']['account_number'];
+        $currency = config('social-banking.currency', 'KES');
 
         // Update session with amount and move to confirmation
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -255,7 +260,7 @@ class BillPaymentController extends BaseMessageController
         $confirmationMsg = "Please confirm bill payment:\n\n" .
                           "Type: {$billType['name']}\n" .
                           "Account: {$accountNumber}\n" .
-                          "Amount: KES {$amount}\n\n" .
+                          "Amount: {$currency} {$amount}\n\n" .
                           "Select an option:";
 
         return $this->formatMenuResponse(
@@ -317,7 +322,7 @@ class BillPaymentController extends BaseMessageController
             Log::info('Updated session for PIN verification');
         }
 
-        return $this->formatTextResponse("Please enter your PIN to complete the payment:");
+        return $this->formatTextResponse("Please enter your PIN (4 digits) to complete the payment:");
     }
 
     protected function processPinVerification(array $message, array $sessionData): array
@@ -371,10 +376,12 @@ class BillPaymentController extends BaseMessageController
 
     protected function formatSuccessMessage(string $billType, string $accountNumber, string $amount): string
     {
+        $currency = config('social-banking.currency', 'KES');
+
         return "Payment successful! ✅\n\n" .
                "Bill Type: {$billType}\n" .
                "Account: {$accountNumber}\n" .
-               "Amount: KES {$amount}\n" .
+               "Amount: {$currency} {$amount}\n" .
                "Reference: " . $this->generateReference();
     }
 

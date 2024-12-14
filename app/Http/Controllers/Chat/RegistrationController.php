@@ -33,7 +33,7 @@ class RegistrationController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your account number:");
+        return $this->formatTextResponse("Please enter your account number (10 digits):");
     }
 
     public function processAccountRegistration(array $message, array $sessionData): array
@@ -73,7 +73,7 @@ class RegistrationController extends BaseMessageController
                 Log::warning('Invalid account number format');
             }
 
-            return $this->formatTextResponse("Invalid account number. Please enter a valid account number:");
+            return $this->formatTextResponse("Invalid account number. Please enter a 10-digit account number:");
         }
 
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -85,7 +85,7 @@ class RegistrationController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please set up your PIN (4 digits):");
+        return $this->formatTextResponse("Please set up your PIN (must be 4 digits):");
     }
 
     protected function processPinSetup(array $message, array $sessionData): array
@@ -103,7 +103,7 @@ class RegistrationController extends BaseMessageController
                 Log::warning('Invalid PIN format');
             }
 
-            return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
+            return $this->formatTextResponse("Invalid PIN. Please enter exactly 4 digits for your PIN:");
         }
 
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -115,7 +115,7 @@ class RegistrationController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please confirm your PIN:");
+        return $this->formatTextResponse("Please confirm your PIN (enter the same 4 digits again):");
     }
 
     protected function processConfirmPin(array $message, array $sessionData): array
@@ -133,7 +133,7 @@ class RegistrationController extends BaseMessageController
                 Log::warning('PINs do not match');
             }
 
-            return $this->formatTextResponse("PINs do not match. Please set up your PIN again (4 digits):");
+            return $this->formatTextResponse("PINs do not match. Please set up your PIN again (must be 4 digits):");
         }
 
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -144,7 +144,7 @@ class RegistrationController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your phone number (e.g., 07XXXXXXXX):");
+        return $this->formatTextResponse("Please enter your phone number (format: 07XXXXXXXX):");
     }
 
     protected function processPhoneNumberInput(array $message, array $sessionData): array
@@ -163,7 +163,7 @@ class RegistrationController extends BaseMessageController
                 Log::warning('Invalid phone number format');
             }
 
-            return $this->formatTextResponse("Invalid phone number. Please enter a valid phone number (e.g., 07XXXXXXXX):");
+            return $this->formatTextResponse("Invalid phone number. Please enter a valid phone number (format: 07XXXXXXXX):");
         }
 
         // Simulate OTP generation and sending (replace with actual implementation)

@@ -95,7 +95,7 @@ class AccountServicesController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your PIN to view balance:");
+        return $this->formatTextResponse("Please enter your PIN (4 digits) to view balance:");
     }
 
     protected function processBalancePinVerification(array $message, array $sessionData): array
@@ -118,6 +118,7 @@ class AccountServicesController extends BaseMessageController
 
         // Simulate balance fetch (replace with actual implementation)
         $balance = $this->getAccountBalance();
+        $currency = config('social-banking.currency', 'KES');
 
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -130,8 +131,8 @@ class AccountServicesController extends BaseMessageController
 
         return $this->formatTextResponse(
             "Your current balance is:\n\n" .
-            "Available Balance: KES {$balance['available']}\n" .
-            "Actual Balance: KES {$balance['actual']}\n\n" .
+            "Available Balance: {$currency} {$balance['available']}\n" .
+            "Actual Balance: {$currency} {$balance['actual']}\n\n" .
             "Reply with 00 to return to main menu."
         );
     }
@@ -159,7 +160,7 @@ class AccountServicesController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your PIN to view mini statement:");
+        return $this->formatTextResponse("Please enter your PIN (4 digits) to view mini statement:");
     }
 
     protected function processMiniStatementPinVerification(array $message, array $sessionData): array
@@ -182,11 +183,12 @@ class AccountServicesController extends BaseMessageController
 
         // Simulate fetching mini statement (replace with actual implementation)
         $transactions = $this->getMiniStatement();
+        $currency = config('social-banking.currency', 'KES');
         
         // Format transactions into readable text
         $statementText = "Last 5 Transactions:\n\n";
         foreach ($transactions as $tx) {
-            $statementText .= "{$tx['date']} | {$tx['description']} | KES {$tx['amount']}\n";
+            $statementText .= "{$tx['date']} | {$tx['description']} | {$currency} {$tx['amount']}\n";
         }
 
         // Reset session to welcome state
@@ -233,7 +235,7 @@ class AccountServicesController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your PIN to proceed:");
+        return $this->formatTextResponse("Please enter your PIN (4 digits) to proceed:");
     }
 
     protected function processFullStatementPinVerification(array $message, array $sessionData): array
@@ -315,11 +317,12 @@ class AccountServicesController extends BaseMessageController
 
         // Simulate fetching full statement (replace with actual implementation)
         $transactions = $this->getFullStatement($sessionData['data']['start_date'], $endDate);
+        $currency = config('social-banking.currency', 'KES');
         
         // Format transactions into readable text
         $statementText = "Statement for {$sessionData['data']['start_date']} to {$endDate}:\n\n";
         foreach ($transactions as $tx) {
-            $statementText .= "{$tx['date']} | {$tx['description']} | KES {$tx['amount']}\n";
+            $statementText .= "{$tx['date']} | {$tx['description']} | {$currency} {$tx['amount']}\n";
         }
 
         // Reset session to welcome state
@@ -412,7 +415,7 @@ class AccountServicesController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your current PIN:");
+        return $this->formatTextResponse("Please enter your current PIN (4 digits):");
     }
 
     protected function processCurrentPinInput(array $message, array $sessionData): array
@@ -441,7 +444,7 @@ class AccountServicesController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please enter your new PIN:");
+        return $this->formatTextResponse("Please enter your new PIN (4 digits):");
     }
 
     protected function processNewPinInput(array $message, array $sessionData): array
@@ -471,7 +474,7 @@ class AccountServicesController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please confirm your new PIN:");
+        return $this->formatTextResponse("Please confirm your new PIN (enter the same 4 digits again):");
     }
 
     protected function processConfirmNewPin(array $message, array $sessionData): array
@@ -489,7 +492,7 @@ class AccountServicesController extends BaseMessageController
                 Log::warning('PINs do not match');
             }
 
-            return $this->formatTextResponse("PINs do not match. Please enter your new PIN again:");
+            return $this->formatTextResponse("PINs do not match. Please enter your new PIN (4 digits) again:");
         }
 
         // Simulate PIN update (replace with actual implementation)
