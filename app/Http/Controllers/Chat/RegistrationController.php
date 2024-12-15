@@ -264,7 +264,7 @@ class RegistrationController extends BaseMessageController
 
         if ($verificationResult['status'] !== GeneralStatus::SUCCESS) {
             return $this->formatTextResponse(
-                "Invalid verification code. Please try again:"
+                "Invalid verification code. Please try again :"
             );
         }
 
