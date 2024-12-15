@@ -16,7 +16,7 @@ class AuthenticationController extends BaseMessageController
     {
         // Generate and send OTP
         $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        
+
         // Store OTP in session
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'OTP_VERIFICATION',
@@ -27,11 +27,11 @@ class AuthenticationController extends BaseMessageController
         ]);
 
         // Send OTP via WhatsApp
-        $otpMessage = "Your OTP for WhatsApp Banking is: {$otp}\n\nThis code will expire in 5 minutes.";
+        $otpMessage = "Welcome back to Social Banking!\n\nPlease enter the 6-digit OTP sent to your number via SMS.\n\n";
         $this->messageAdapter->sendMessage($message['sender'], $otpMessage);
 
         return [
-            'message' => "Please enter the 6-digit OTP sent to your WhatsApp number to continue.",
+            'message' => $otpMessage,
             'type' => 'text'
         ];
     }
@@ -122,7 +122,7 @@ class AuthenticationController extends BaseMessageController
 
             // Check if user is registered
             $chatUser = ChatUser::where('phone_number', $parsedMessage['sender'])->first();
-            
+
             // Prepare response based on channel and registration status
             if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
                 if (!$chatUser) {
