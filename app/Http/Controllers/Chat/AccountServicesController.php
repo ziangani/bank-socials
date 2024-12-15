@@ -8,7 +8,6 @@ class AccountServicesController extends BaseMessageController
 {
     // Account services flow states
     const STATES = [
-        'PIN_VERIFICATION' => 'PIN_VERIFICATION',
         'DATE_RANGE_SELECTION' => 'DATE_RANGE_SELECTION',
         'START_DATE_INPUT' => 'START_DATE_INPUT',
         'END_DATE_INPUT' => 'END_DATE_INPUT',
@@ -81,41 +80,6 @@ class AccountServicesController extends BaseMessageController
             ]);
         }
 
-        $currentStep = $sessionData['data']['step'] ?? null;
-
-        if ($currentStep === self::STATES['PIN_VERIFICATION']) {
-            return $this->processBalancePinVerification($message, $sessionData);
-        }
-
-        // Initialize PIN verification while preserving session data
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'BALANCE_INQUIRY',
-            'data' => [
-                'step' => self::STATES['PIN_VERIFICATION']
-            ]
-        ]);
-
-        return $this->formatTextResponse("Please enter your PIN (4 digits) to view balance:");
-    }
-
-    protected function processBalancePinVerification(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing balance PIN verification:', [
-                'session' => $sessionData
-            ]);
-        }
-
-        $pin = $message['content'];
-
-        if (!$this->validatePin($pin)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid PIN format');
-            }
-
-            return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
-        }
-
         // Simulate balance fetch (replace with actual implementation)
         $balance = $this->getAccountBalance();
         $currency = config('social-banking.currency', 'MWK');
@@ -144,41 +108,6 @@ class AccountServicesController extends BaseMessageController
                 'message' => $message,
                 'session' => $sessionData
             ]);
-        }
-
-        $currentStep = $sessionData['data']['step'] ?? null;
-
-        if ($currentStep === self::STATES['PIN_VERIFICATION']) {
-            return $this->processMiniStatementPinVerification($message, $sessionData);
-        }
-
-        // Initialize PIN verification while preserving session data
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'MINI_STATEMENT',
-            'data' => [
-                'step' => self::STATES['PIN_VERIFICATION']
-            ]
-        ]);
-
-        return $this->formatTextResponse("Please enter your PIN (4 digits) to view mini statement:");
-    }
-
-    protected function processMiniStatementPinVerification(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing mini statement PIN verification:', [
-                'session' => $sessionData
-            ]);
-        }
-
-        $pin = $message['content'];
-
-        if (!$this->validatePin($pin)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid PIN format');
-            }
-
-            return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
         }
 
         // Simulate fetching mini statement (replace with actual implementation)
@@ -215,7 +144,6 @@ class AccountServicesController extends BaseMessageController
         $currentStep = $sessionData['data']['step'] ?? null;
 
         return match($currentStep) {
-            self::STATES['PIN_VERIFICATION'] => $this->processFullStatementPinVerification($message, $sessionData),
             self::STATES['START_DATE_INPUT'] => $this->processStartDateInput($message, $sessionData),
             self::STATES['END_DATE_INPUT'] => $this->processEndDateInput($message, $sessionData),
             default => $this->initializeFullStatement($message, $sessionData)
@@ -226,34 +154,6 @@ class AccountServicesController extends BaseMessageController
     {
         if (config('app.debug')) {
             Log::info('Initializing full statement request');
-        }
-
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'FULL_STATEMENT',
-            'data' => [
-                'step' => self::STATES['PIN_VERIFICATION']
-            ]
-        ]);
-
-        return $this->formatTextResponse("Please enter your PIN (4 digits) to proceed:");
-    }
-
-    protected function processFullStatementPinVerification(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing full statement PIN verification:', [
-                'session' => $sessionData
-            ]);
-        }
-
-        $pin = $message['content'];
-
-        if (!$this->validatePin($pin)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid PIN format');
-            }
-
-            return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
         }
 
         $this->messageAdapter->updateSession($message['session_id'], [

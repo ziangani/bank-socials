@@ -11,7 +11,6 @@ class TransferController extends BaseMessageController
         'RECIPIENT_INPUT' => 'RECIPIENT_INPUT',
         'AMOUNT_INPUT' => 'AMOUNT_INPUT',
         'CONFIRM_TRANSFER' => 'CONFIRM_TRANSFER',
-        'PIN_VERIFICATION' => 'PIN_VERIFICATION',
     ];
 
     public function handleTransfer(array $message, array $sessionData): array
@@ -44,7 +43,6 @@ class TransferController extends BaseMessageController
             self::STATES['RECIPIENT_INPUT'] => $this->processRecipientInput($message, $sessionData, 'internal'),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_TRANSFER'] => $this->processTransferConfirmation($message, $sessionData),
-            self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
             default => $this->initializeTransfer($message, $sessionData, 'internal')
         };
     }
@@ -64,7 +62,6 @@ class TransferController extends BaseMessageController
             self::STATES['RECIPIENT_INPUT'] => $this->processRecipientInput($message, $sessionData, 'bank'),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_TRANSFER'] => $this->processTransferConfirmation($message, $sessionData),
-            self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
             default => $this->initializeTransfer($message, $sessionData, 'bank')
         };
     }
@@ -84,7 +81,6 @@ class TransferController extends BaseMessageController
             self::STATES['RECIPIENT_INPUT'] => $this->processRecipientInput($message, $sessionData, 'mobile'),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_TRANSFER'] => $this->processTransferConfirmation($message, $sessionData),
-            self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
             default => $this->initializeTransfer($message, $sessionData, 'mobile')
         };
     }
@@ -243,38 +239,7 @@ class TransferController extends BaseMessageController
             );
         }
 
-        // Update session for PIN verification while preserving state
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => $sessionData['state'], // Maintain current state
-            'data' => [
-                ...$sessionData['data'],
-                'step' => self::STATES['PIN_VERIFICATION']
-            ]
-        ]);
-
-        return $this->formatTextResponse("Please enter your PIN (4 digits) to complete the transfer:");
-    }
-
-    protected function processPinVerification(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing PIN verification:', [
-                'session' => $sessionData
-            ]);
-        }
-
-        $pin = $message['content'];
-
-        // Simulate PIN verification (replace with actual verification logic)
-        if (strlen($pin) !== 4 || !is_numeric($pin)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid PIN format');
-            }
-
-            return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
-        }
-
-        // Simulate successful transfer (replace with actual transfer logic)
+        // Process the transfer directly since PIN was already verified at login
         $transferData = $sessionData['data'];
         $successMsg = $this->formatSuccessMessage(
             $transferData['transfer_type'],

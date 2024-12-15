@@ -12,7 +12,6 @@ class BillPaymentController extends BaseMessageController
         'ACCOUNT_INPUT' => 'ACCOUNT_INPUT',
         'AMOUNT_INPUT' => 'AMOUNT_INPUT',
         'CONFIRM_PAYMENT' => 'CONFIRM_PAYMENT',
-        'PIN_VERIFICATION' => 'PIN_VERIFICATION',
     ];
 
     // Bill types and their validation patterns
@@ -97,7 +96,6 @@ class BillPaymentController extends BaseMessageController
             self::STATES['ACCOUNT_INPUT'] => $this->processAccountInput($message, $sessionData),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
             self::STATES['CONFIRM_PAYMENT'] => $this->processPaymentConfirmation($message, $sessionData),
-            self::STATES['PIN_VERIFICATION'] => $this->processPinVerification($message, $sessionData),
             default => $this->handleBillPayment($message, $sessionData)
         };
     }
@@ -309,42 +307,7 @@ class BillPaymentController extends BaseMessageController
             );
         }
 
-        // Update session for PIN verification
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
-            'data' => [
-                ...$sessionData['data'],
-                'step' => self::STATES['PIN_VERIFICATION']
-            ]
-        ]);
-
-        if (config('app.debug')) {
-            Log::info('Updated session for PIN verification');
-        }
-
-        return $this->formatTextResponse("Please enter your PIN (4 digits) to complete the payment:");
-    }
-
-    protected function processPinVerification(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing PIN verification:', [
-                'session' => $sessionData
-            ]);
-        }
-
-        $pin = $message['content'];
-
-        // Validate PIN
-        if (strlen($pin) !== 4 || !is_numeric($pin)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid PIN format');
-            }
-
-            return $this->formatTextResponse("Invalid PIN. Please enter a 4-digit PIN:");
-        }
-
-        // Simulate successful payment (replace with actual payment processing)
+        // Process payment directly since PIN was already verified at login
         $paymentData = $sessionData['data'];
         $successMsg = $this->formatSuccessMessage(
             $paymentData['bill_type']['name'],
