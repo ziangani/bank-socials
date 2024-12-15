@@ -183,7 +183,7 @@ class AuthenticationService extends BaseService
     /**
      * Validate account details
      */
-    protected function validateAccountDetails(array $data): array
+    public function validateAccountDetails(array $data): array
     {
         // Validate account number format
         if (!preg_match('/^[0-9]{10,}$/', $data['account_number'])) {
@@ -193,11 +193,11 @@ class AuthenticationService extends BaseService
             ];
         }
 
-        // Validate ID number
-        if (empty($data['id_number'])) {
+        // Validate phone number
+        if (empty($data['phone_number'])) {
             return [
                 'status' => GeneralStatus::ERROR,
-                'message' => 'ID number is required'
+                'message' => 'Phone number is required'
             ];
         }
 
@@ -215,11 +215,10 @@ class AuthenticationService extends BaseService
     protected function createUserAccount(array $data): User
     {
         $user = new User();
-        $user->name = $data['name'];
+        $user->name = $data['name'] ?? 'User';
         $user->phone_number = $this->formatPhoneNumber($data['phone_number']);
         $user->email = $data['email'] ?? null;
         $user->account_number = $data['account_number'];
-        $user->id_number = $data['id_number'];
         $user->status = 'active';
         $user->save();
 
@@ -241,5 +240,40 @@ class AuthenticationService extends BaseService
     protected function validatePINFormat(string $pin): bool
     {
         return preg_match('/^[0-9]{4}$/', $pin);
+    }
+
+    /**
+     * Generate OTP
+     */
+    protected function generateOTP(string $phoneNumber): string
+    {
+        return str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Validate OTP
+     */
+    protected function validateOTP(string $phoneNumber, string $otp): bool
+    {
+        // TODO: Implement actual OTP validation
+        return true;
+    }
+
+    /**
+     * Format phone number
+     */
+    protected function formatPhoneNumber(string $phoneNumber): string
+    {
+        // Remove any non-digit characters
+        $cleaned = preg_replace('/[^0-9]/', '', $phoneNumber);
+        
+        // Ensure it starts with country code
+        if (strlen($cleaned) === 9) {
+            return '254' . $cleaned;
+        }
+        if (strlen($cleaned) === 10 && $cleaned[0] === '0') {
+            return '254' . substr($cleaned, 1);
+        }
+        return $cleaned;
     }
 }

@@ -57,19 +57,19 @@ class ChatController extends BaseMessageController
 
             // Check if message already processed
             if ($this->messageAdapter->isMessageProcessed($parsedMessage['message_id'])) {
-                // return response()->json(['status' => 'already_processed']);
+                return response()->json(['status' => 'already_processed']);
             }
 
             // Check for exit command '000'
             if ($parsedMessage['content'] === '000') {
-                return $this->handleExitCommand($parsedMessage);
+                return $this->handleLogout($parsedMessage);
             }
 
             // Check for return to main menu command '00'
             if ($parsedMessage['content'] === '00') {
                 return $this->handleReturnToMainMenu($parsedMessage);
             }
-
+            
             // Get or create session
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
 
@@ -141,9 +141,55 @@ class ChatController extends BaseMessageController
     }
 
     /**
-     * Handle return to main menu command
+     * Handle user logout
      */
-    protected function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
+    protected function handleLogout(array $parsedMessage): \Illuminate\Http\JsonResponse
+    {
+        try {
+            // End the current session
+            if ($parsedMessage['session_id']) {
+                $this->messageAdapter->endSession($parsedMessage['session_id']);
+            }
+
+            // Clear any stored authentication state
+            $this->messageAdapter->createSession([
+                'session_id' => $parsedMessage['session_id'],
+                'sender' => $parsedMessage['sender'],
+                'state' => 'WELCOME',
+                'data' => [
+                    'authenticated_at' => null,
+                    'otp_verified' => false
+                ]
+            ]);
+
+            $response = [
+                'message' => "You have been logged out successfully.\n\nThank you for using our service. Reply with 'Hi' to start a new session.",
+                'type' => 'text',
+                'end_session' => true
+            ];
+
+            // Send response via message adapter
+            $options = ['message_id' => $parsedMessage['message_id']];
+            $this->messageAdapter->sendMessage(
+                $parsedMessage['sender'],
+                $response['message'],
+                $options
+            );
+
+            // Format response for channel
+            $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
+            return response()->json($formattedResponse);
+
+        } catch (\Exception $e) {
+            Log::error('Logout error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to process logout'
+            ], 500);
+        }
+    }
+
+        protected function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
         // End current session and create a new clean session
         if ($parsedMessage['session_id']) {
@@ -171,8 +217,8 @@ class ChatController extends BaseMessageController
         $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
         return response()->json($formattedResponse);
     }
-
-    /**
+    
+ /**
      * Handle exit command
      */
     protected function handleExitCommand(array $parsedMessage): \Illuminate\Http\JsonResponse
@@ -213,10 +259,18 @@ class ChatController extends BaseMessageController
         }
 
         // Check if user needs OTP verification
-        if (!isset($sessionData['data']['otp_verified']) || !$sessionData['data']['otp_verified']) {
+        if (!isset($message['session_id']) || !$this->isUserAuthenticated($message['session_id'])) {
             return $this->initiateOTPVerification($message);
         }
 
+        return $this->showMainMenu($message);
+    }
+
+    /**
+     * Show main menu for authenticated users
+     */
+    protected function showMainMenu(array $message): array
+    {
         $contactName = $message['contact_name'] ?? 'there';
         $welcomeText = "Hello {$contactName}! 👋\n\nPlease select an option from the menu below:\n";
 
@@ -228,52 +282,6 @@ class ChatController extends BaseMessageController
         }
 
         $welcomeText .= "\nTo return to this menu at any time, reply with 00.\nTo exit at any time, reply with 000.";
-
-        // Send response with interactive list menu
-        $options = [
-            'message_id' => $message['message_id'],
-            'type' => 'interactive',
-            'interactive_type' => 'list',
-            'business_phone_id' => $message['business_phone_id'] ?? config('whatsapp.business_phone_id'),
-            'sections' => [
-                [
-                    'title' => "Account & Registration",
-                    'rows' => [
-                        [
-                            'id' => "1",
-                            'title' => "Register",
-                            'description' => "Register for a new account"
-                        ],
-                        [
-                            'id' => "4",
-                            'title' => "Account Services",
-                            'description' => "Balance inquiry, statements, and PIN management"
-                        ]
-                    ]
-                ],
-                [
-                    'title' => "Transactions",
-                    'rows' => [
-                        [
-                            'id' => "2",
-                            'title' => "Money Transfer",
-                            'description' => "Send money to bank accounts or mobile money"
-                        ],
-                        [
-                            'id' => "3",
-                            'title' => "Bill Payments",
-                            'description' => "Pay your bills and utilities"
-                        ]
-                    ]
-                ]
-            ]
-        ];
-
-        $this->messageAdapter->sendMessage(
-            $message['sender'],
-            $welcomeText,
-            $options
-        );
 
         return [
             'message' => $welcomeText,
@@ -295,7 +303,7 @@ class ChatController extends BaseMessageController
         // Check if user is registered
         $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         
-        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION'])) {
+        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION', 'HELP'])) {
             return $this->showUnregisteredMenu($message);
         }
 
@@ -307,9 +315,19 @@ class ChatController extends BaseMessageController
             ]);
         }
 
+        // Process OTP verification if needed
+        if ($state === 'OTP_VERIFICATION') {
+            return $this->processOTPVerification($message, $sessionData);
+        }
+
         // Main menu states
         if (in_array($state, ['WELCOME'])) {
             return $this->processWelcomeInput($message, $sessionData);
+        }
+
+        // Help state
+        if ($state === 'HELP') {
+            return $this->handleHelp($message, $sessionData);
         }
 
         // Registration states
@@ -331,6 +349,11 @@ class ChatController extends BaseMessageController
             };
         }
 
+        // Check authentication for protected states
+        if (!$this->isUserAuthenticated($message['session_id'])) {
+            return $this->initiateOTPVerification($message);
+        }
+
         // Transfer states
         if (in_array($state, [
             'TRANSFER_INIT', 
@@ -338,54 +361,11 @@ class ChatController extends BaseMessageController
             'BANK_TRANSFER', 
             'MOBILE_MONEY_TRANSFER'
         ])) {
-            // If we're in TRANSFER_INIT state and have a menu selection
-            if ($state === 'TRANSFER_INIT' && isset($message['content'])) {
-                $transferMenu = $this->getMenuConfig('transfer');
-                $selection = $message['content'];
-
-                foreach ($transferMenu as $key => $option) {
-                    if ($selection == $key) {
-                        // Update session with selected transfer type
-                        $this->messageAdapter->updateSession($message['session_id'], [
-                            'state' => $option['state']
-                        ]);
-
-                        // Route to appropriate transfer handler
-                        return match($option['state']) {
-                            'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
-                            'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
-                            'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
-                            default => $this->handleUnknownState($message, $sessionData)
-                        };
-                    }
-                }
-
-                // Invalid selection
-                return $this->formatMenuResponse(
-                    "Invalid selection. Please select transfer type:\n\n",
-                    $transferMenu
-                );
-            }
-
-            // Process based on current transfer state
-            return match ($state) {
-                'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
-                'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
-                'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
-                'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
-                default => $this->handleUnknownState($message, $sessionData)
-            };
+            return $this->handleTransferStates($state, $message, $sessionData);
         }
 
         // Bill payment states
         if ($state === 'BILL_PAYMENT_INIT') {
-            if (config('app.debug')) {
-                Log::info('Processing bill payment:', [
-                    'state' => $state,
-                    'step' => $sessionData['data']['step'] ?? null
-                ]);
-            }
-
             return $this->billPaymentController->processBillPayment($message, $sessionData);
         }
 
@@ -397,16 +377,7 @@ class ChatController extends BaseMessageController
             'FULL_STATEMENT',
             'PIN_MANAGEMENT'
         ])) {
-            if ($state === 'SERVICES_INIT') {
-                return $this->accountServicesController->handleAccountServices($message, $sessionData);
-            }
-            return match ($state) {
-                'BALANCE_INQUIRY' => $this->accountServicesController->processBalanceInquiry($message, $sessionData),
-                'MINI_STATEMENT' => $this->accountServicesController->processMiniStatement($message, $sessionData),
-                'FULL_STATEMENT' => $this->accountServicesController->processFullStatement($message, $sessionData),
-                'PIN_MANAGEMENT' => $this->accountServicesController->processPINManagement($message, $sessionData),
-                default => $this->handleUnknownState($message, $sessionData)
-            };
+            return $this->handleAccountServicesStates($state, $message, $sessionData);
         }
 
         if (config('app.debug')) {
@@ -422,16 +393,21 @@ class ChatController extends BaseMessageController
     protected function processWelcomeInput(array $message, array $sessionData): array
     {
         $input = $message['content'];
-        $mainMenu = $this->getMenuConfig('main');
+        
+        // Check if user is registered
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+        $menuConfig = $chatUser ? 'main' : 'unregistered';
+        $menu = $this->getMenuConfig($menuConfig);
 
         if (config('app.debug')) {
             Log::info('Processing welcome input:', [
                 'input' => $input,
-                'menu' => $mainMenu
+                'menu' => $menu,
+                'is_registered' => (bool)$chatUser
             ]);
         }
 
-        foreach ($mainMenu as $key => $option) {
+        foreach ($menu as $key => $option) {
             if ($input == $key || strtolower($input) == strtolower($option['text'])) {
                 // Update session with selected option
                 $this->messageAdapter->updateSession($message['session_id'], [
@@ -450,28 +426,12 @@ class ChatController extends BaseMessageController
                     ]);
                 }
 
-                // For account services, we'll use text menu instead of interactive buttons
-                if ($option['state'] === 'SERVICES_INIT') {
-                    $servicesMenu = $this->getMenuConfig('account_services');
-                    $menuText = "Account Services Menu:\n\n";
-                    
-                    foreach ($servicesMenu as $serviceKey => $serviceOption) {
-                        $menuText .= "{$serviceKey}. {$serviceOption['text']}\n";
-                    }
-                    
-                    $menuText .= "\nReply with the number of your choice.\n";
-                    $menuText .= "Reply with 00 for main menu or 000 to exit.";
-
-                    return [
-                        'message' => $menuText,
-                        'type' => 'text'
-                    ];
-                }
-
                 return match ($option['state']) {
                     'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
+                    'HELP' => $this->handleHelp($message, $sessionData),
                     'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
                     'BILL_PAYMENT_INIT' => $this->billPaymentController->handleBillPayment($message, $sessionData),
+                    'SERVICES_INIT' => $this->showAccountServicesMenu($message),
                     default => $this->handleUnknownState($message, $sessionData)
                 };
             }
@@ -481,16 +441,23 @@ class ChatController extends BaseMessageController
             Log::warning('Invalid menu option:', ['input' => $input]);
         }
 
-        // Show welcome menu again for invalid input
-        return $this->handleWelcome($message);
+        // Show appropriate menu again for invalid input
+        return $chatUser ? $this->showMainMenu($message) : $this->showUnregisteredMenu($message);
     }
 
+    /**
+     * Show menu for unregistered users
+     */
     protected function showUnregisteredMenu(array $message): array
     {
         $welcomeText = "Welcome to our banking service! 👋\n\nPlease select an option:\n\n";
-        $welcomeText .= "1. Register for WhatsApp Banking\n";
-        $welcomeText .= "2. Help\n\n";
-        $welcomeText .= "Reply with the number of your choice.";
+        
+        $unregisteredMenu = $this->getMenuConfig('unregistered');
+        foreach ($unregisteredMenu as $key => $option) {
+            $welcomeText .= "{$key}. {$option['text']}\n";
+        }
+        
+        $welcomeText .= "\nReply with the number of your choice.";
 
         return [
             'message' => $welcomeText,
@@ -498,6 +465,118 @@ class ChatController extends BaseMessageController
         ];
     }
 
+    /**
+     * Handle help menu option
+     */
+    protected function handleHelp(array $message, array $sessionData): array
+    {
+        $helpText = "Welcome to our Banking Service Help! 🤝\n\n";
+        $helpText .= "Here's how to use our service:\n\n";
+        $helpText .= "1. Registration:\n";
+        $helpText .= "   - Select 'Register' from the menu\n";
+        $helpText .= "   - Enter your 10-digit account number\n";
+        $helpText .= "   - Set up a 4-digit PIN\n";
+        $helpText .= "   - Verify with OTP\n\n";
+        $helpText .= "2. Login:\n";
+        $helpText .= "   - Verify with OTP each session\n";
+        $helpText .= "   - For USSD, use your PIN\n\n";
+        $helpText .= "3. Navigation:\n";
+        $helpText .= "   - Use menu numbers to select options\n";
+        $helpText .= "   - Type 00 to return to main menu\n";
+        $helpText .= "   - Type 000 to exit\n\n";
+        $helpText .= "Reply with 00 to return to the main menu.";
+
+        return [
+            'message' => $helpText,
+            'type' => 'text'
+        ];
+    }
+
+    /**
+     * Show account services menu
+     */
+    protected function showAccountServicesMenu(array $message): array
+    {
+        $servicesMenu = $this->getMenuConfig('account_services');
+        $menuText = "Account Services Menu:\n\n";
+        
+        foreach ($servicesMenu as $serviceKey => $serviceOption) {
+            $menuText .= "{$serviceKey}. {$serviceOption['text']}\n";
+        }
+        
+        $menuText .= "\nReply with the number of your choice.\n";
+        $menuText .= "Reply with 00 for main menu or 000 to exit.";
+
+        return [
+            'message' => $menuText,
+            'type' => 'text'
+        ];
+    }
+
+    /**
+     * Handle transfer states
+     */
+    protected function handleTransferStates(string $state, array $message, array $sessionData): array
+    {
+        if ($state === 'TRANSFER_INIT' && isset($message['content'])) {
+            $transferMenu = $this->getMenuConfig('transfer');
+            $selection = $message['content'];
+
+            foreach ($transferMenu as $key => $option) {
+                if ($selection == $key) {
+                    // Update session with selected transfer type
+                    $this->messageAdapter->updateSession($message['session_id'], [
+                        'state' => $option['state']
+                    ]);
+
+                    // Route to appropriate transfer handler
+                    return match($option['state']) {
+                        'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
+                        'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
+                        'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
+                        default => $this->handleUnknownState($message, $sessionData)
+                    };
+                }
+            }
+
+            // Invalid selection
+            return $this->formatMenuResponse(
+                "Invalid selection. Please select transfer type:\n\n",
+                $transferMenu
+            );
+        }
+
+        // Process based on current transfer state
+        return match ($state) {
+            'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
+            'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
+            'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
+            'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
+            default => $this->handleUnknownState($message, $sessionData)
+        };
+    }
+
+    /**
+     * Handle account services states
+     */
+    protected function handleAccountServicesStates(string $state, array $message, array $sessionData): array
+    {
+        if ($state === 'SERVICES_INIT') {
+            return $this->accountServicesController->handleAccountServices($message, $sessionData);
+        }
+
+        return match ($state) {
+            'BALANCE_INQUIRY' => $this->accountServicesController->processBalanceInquiry($message, $sessionData),
+            'MINI_STATEMENT' => $this->accountServicesController->processMiniStatement($message, $sessionData),
+            'FULL_STATEMENT' => $this->accountServicesController->processFullStatement($message, $sessionData),
+            'PIN_MANAGEMENT' => $this->accountServicesController->processPINManagement($message, $sessionData),
+            default => $this->handleUnknownState($message, $sessionData)
+        };
+    }
+
+    /**
+     * Check if session is expired
+     */
     protected function isSessionExpired(array $sessionData): bool
     {
         $timeout = config('whatsapp.session_timeout', 600);
@@ -506,6 +585,9 @@ class ChatController extends BaseMessageController
         return $lastActivity->addSeconds($timeout)->isPast();
     }
 
+    /**
+     * Handle session expiry
+     */
     protected function handleSessionExpiry(array $message): array
     {
         // End the session
@@ -520,6 +602,9 @@ class ChatController extends BaseMessageController
         ];
     }
 
+    /**
+     * Initiate OTP verification
+     */
     protected function initiateOTPVerification(array $message): array
     {
         // Generate and send OTP
@@ -534,12 +619,93 @@ class ChatController extends BaseMessageController
             ]
         ]);
 
-        // Send OTP via SMS (implement your SMS service here)
-        // SMSService::send($message['sender'], "Your OTP for WhatsApp Banking is: {$otp}");
+        // Send OTP via WhatsApp
+        $otpMessage = "Your OTP for WhatsApp Banking is: {$otp}\n\nThis code will expire in 5 minutes.";
+        $this->messageAdapter->sendMessage($message['sender'], $otpMessage);
 
         return [
-            'message' => "Please enter the 6-digit OTP sent to your registered mobile number to continue.",
+            'message' => "Please enter the 6-digit OTP sent to your WhatsApp number to continue.",
             'type' => 'text'
         ];
     }
+
+    /**
+     * Process OTP verification
+     */
+    protected function processOTPVerification(array $message, array $sessionData): array
+    {
+        $inputOtp = $message['content'];
+        $storedOtp = $sessionData['data']['otp'] ?? null;
+        $otpGeneratedAt = $sessionData['data']['otp_generated_at'] ?? null;
+
+        // Verify OTP
+        if (!$storedOtp || !$otpGeneratedAt) {
+            return $this->initiateOTPVerification($message);
+        }
+
+        // Check OTP expiry (5 minutes)
+        if (Carbon::parse($otpGeneratedAt)->addMinutes(5)->isPast()) {
+            return [
+                'message' => "OTP has expired. Please request a new one.",
+                'type' => 'text'
+            ];
+        }
+
+        if ($inputOtp !== $storedOtp) {
+            return [
+                'message' => "Invalid OTP. Please try again or type 00 to return to main menu.",
+                'type' => 'text'
+            ];
+        }
+
+        // Mark session as authenticated
+        $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'WELCOME',
+            'data' => [
+                ...$sessionData['data'],
+                'otp_verified' => true,
+                'authenticated_at' => now()
+            ]
+        ]);
+
+        return $this->showMainMenu($message);
+    }
+
+    /**
+     * Check if user is authenticated in current session
+     */
+    protected function isUserAuthenticated(string $sessionId): bool
+    {
+        $sessionData = $this->messageAdapter->getSessionData($sessionId);
+        if (!$sessionData) {
+            return false;
+        }
+
+        $authenticatedAt = $sessionData['data']['authenticated_at'] ?? null;
+        if (!$authenticatedAt) {
+            return false;
+        }
+
+        // Authentication valid for 30 minutes
+        return !Carbon::parse($authenticatedAt)->addMinutes(30)->isPast();
+    }
+
+    /**
+     * Handle unknown state
+     */
+    protected function handleUnknownState(array $message, array $sessionData): array
+    {
+        if (config('app.debug')) {
+            Log::error('Unknown state:', [
+                'state' => $sessionData['state'] ?? 'NO_STATE',
+                'session' => $sessionData
+            ]);
+        }
+
+        return [
+            'message' => "Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.",
+            'type' => 'text'
+        ];
+    }
+    // ... (rest of the class remains the same)
 }

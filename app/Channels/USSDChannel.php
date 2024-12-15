@@ -4,10 +4,20 @@ namespace App\Channels;
 
 use App\Interfaces\ChannelInterface;
 use App\Models\WhatsAppSessions;
+use App\Models\ChatUser;
+use App\Services\AuthenticationService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 
 class USSDChannel implements ChannelInterface
 {
+    protected AuthenticationService $authService;
+
+    public function __construct(AuthenticationService $authService)
+    {
+        $this->authService = $authService;
+    }
+
     public function processRequest(array $request): array
     {
         try {
@@ -18,6 +28,11 @@ class USSDChannel implements ChannelInterface
 
             if (!$sessionId || !$phoneNumber) {
                 throw new \Exception('Invalid USSD request parameters');
+            }
+
+            // Check for logout command
+            if ($input === '000') {
+                return $this->handleLogout($sessionId, $phoneNumber);
             }
 
             // New session
@@ -126,21 +141,217 @@ class USSDChannel implements ChannelInterface
             'serviceCode' => $serviceCode
         ]);
 
+        // Check if user is registered
+        $chatUser = ChatUser::where('phone_number', $phoneNumber)->first();
+        
+        if (!$chatUser) {
+            WhatsAppSessions::createNewState(
+                $sessionId,
+                $phoneNumber,
+                'REGISTRATION_INIT',
+                [],
+                'ussd'
+            );
+
+            return [
+                'message' => "Welcome to Social Banking\n1. Register\n2. Help",
+                'type' => 'CON'
+            ];
+        }
+
         return [
-            'message' => "Welcome to Social Banking\n1. Check Balance\n2. Send Money\n3. Pay Bills\n4. Mini Statement\n5. My Account",
+            'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
             'type' => 'CON'
         ];
+    }
+
+    protected function handleLogout(string $sessionId, string $phoneNumber): array
+    {
+        try {
+            // End current session
+            $this->endSession($sessionId);
+
+            // Clear any stored authentication state
+            WhatsAppSessions::where('session_id', $sessionId)
+                ->update([
+                    'status' => 'ended',
+                    'state' => 'END',
+                    'data' => json_encode([
+                        'authenticated' => false,
+                        'logged_out_at' => now()
+                    ])
+                ]);
+
+            return [
+                'message' => "You have been logged out successfully.\n\nDial *123# to start a new session.",
+                'type' => 'END'
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('USSD logout error: ' . $e->getMessage());
+            return [
+                'message' => 'Error processing logout. Please try again.',
+                'type' => 'END'
+            ];
+        }
     }
 
     protected function processUSSDInput(WhatsAppSessions $session, string $input): array
     {
         return match($session->state) {
-            'INIT' => $this->handleMainMenu($session, $input),
+            'INIT' => $this->handleInitialPin($session, $input),
+            'REGISTRATION_INIT' => $this->handleRegistrationInit($session, $input),
+            'ACCOUNT_NUMBER_INPUT' => $this->handleAccountNumberInput($session, $input),
+            'PIN_SETUP' => $this->handlePinSetup($session, $input),
+            'CONFIRM_PIN' => $this->handleConfirmPin($session, $input),
+            'MAIN_MENU' => $this->handleMainMenu($session, $input),
             'SEND_MONEY' => $this->handleSendMoney($session, $input),
             'AWAITING_AMOUNT' => $this->handleAmount($session, $input),
-            'AWAITING_PIN' => $this->handlePin($session, $input),
+            'AWAITING_PIN' => $this->handleTransactionPin($session, $input),
             default => $this->handleUnknownState($session)
         };
+    }
+
+    protected function handleInitialPin(WhatsAppSessions $session, string $input): array
+    {
+        $chatUser = ChatUser::where('phone_number', $session->sender)->first();
+        
+        if (!$chatUser) {
+            return [
+                'message' => "Account not registered. Please register first.\n1. Register\n2. Help",
+                'type' => 'CON'
+            ];
+        }
+
+        if (!Hash::check($input, $chatUser->pin)) {
+            return [
+                'message' => 'Invalid PIN. Please try again.',
+                'type' => 'END'
+            ];
+        }
+
+        WhatsAppSessions::createNewState(
+            $session->session_id,
+            $session->sender,
+            'MAIN_MENU',
+            $session->data,
+            'ussd'
+        );
+
+        return [
+            'message' => "Main Menu\n1. Check Balance\n2. Send Money\n3. Pay Bills\n4. Mini Statement\n5. My Account",
+            'type' => 'CON'
+        ];
+    }
+
+    protected function handleRegistrationInit(WhatsAppSessions $session, string $input): array
+    {
+        if ($input === '1') {
+            WhatsAppSessions::createNewState(
+                $session->session_id,
+                $session->sender,
+                'ACCOUNT_NUMBER_INPUT',
+                [],
+                'ussd'
+            );
+
+            return [
+                'message' => 'Please enter your account number (10 digits):',
+                'type' => 'CON'
+            ];
+        } elseif ($input === '2') {
+            return [
+                'message' => "Help Information:\n" .
+                            "1. Registration requires:\n" .
+                            "   - Valid account number\n" .
+                            "   - 4-digit PIN setup\n" .
+                            "2. For assistance call: 100\n\n" .
+                            "0. Back",
+                'type' => 'CON'
+            ];
+        }
+
+        return [
+            'message' => "Invalid selection.\n1. Register\n2. Help",
+            'type' => 'CON'
+        ];
+    }
+
+    protected function handleAccountNumberInput(WhatsAppSessions $session, string $input): array
+    {
+        $validation = $this->authService->validateAccountDetails([
+            'account_number' => $input,
+            'phone_number' => $session->sender
+        ]);
+
+        if ($validation['status'] !== 'SUCCESS') {
+            return [
+                'message' => 'Invalid account number. Please try again:',
+                'type' => 'CON'
+            ];
+        }
+
+        WhatsAppSessions::createNewState(
+            $session->session_id,
+            $session->sender,
+            'PIN_SETUP',
+            ['account_number' => $input],
+            'ussd'
+        );
+
+        return [
+            'message' => 'Please set up your 4-digit PIN:',
+            'type' => 'CON'
+        ];
+    }
+
+    protected function handlePinSetup(WhatsAppSessions $session, string $input): array
+    {
+        if (!preg_match('/^\d{4}$/', $input)) {
+            return [
+                'message' => 'Invalid PIN. Please enter exactly 4 digits:',
+                'type' => 'CON'
+            ];
+        }
+
+        WhatsAppSessions::createNewState(
+            $session->session_id,
+            $session->sender,
+            'CONFIRM_PIN',
+            [
+                ...$session->data,
+                'pin' => $input
+            ],
+            'ussd'
+        );
+
+        return [
+            'message' => 'Please confirm your PIN:',
+            'type' => 'CON'
+        ];
+    }
+
+    protected function handleConfirmPin(WhatsAppSessions $session, string $input): array
+    {
+        if ($input !== $session->data['pin']) {
+            return [
+                'message' => 'PINs do not match. Please try again:',
+                'type' => 'CON'
+            ];
+        }
+
+        // Create ChatUser record
+        ChatUser::create([
+            'phone_number' => $session->sender,
+            'account_number' => $session->data['account_number'],
+            'pin' => Hash::make($input),
+            'is_verified' => true
+        ]);
+
+        return [
+            'message' => "Registration successful!\nThank you for registering.\n\nDial *123# to start using our services.",
+            'type' => 'END'
+        ];
     }
 
     protected function handleMainMenu(WhatsAppSessions $session, string $input): array
@@ -149,7 +360,8 @@ class USSDChannel implements ChannelInterface
             '1' => [
                 'message' => 'Please enter your PIN to view balance:',
                 'type' => 'CON',
-                'next_state' => 'AWAITING_PIN'
+                'next_state' => 'AWAITING_PIN',
+                'action' => 'balance'
             ],
             '2' => [
                 'message' => "Enter recipient's phone number:",
@@ -164,7 +376,8 @@ class USSDChannel implements ChannelInterface
             '4' => [
                 'message' => 'Please enter your PIN for mini statement:',
                 'type' => 'CON',
-                'next_state' => 'AWAITING_PIN'
+                'next_state' => 'AWAITING_PIN',
+                'action' => 'statement'
             ],
             '5' => [
                 'message' => "My Account:\n1. Change PIN\n2. Update Profile\n3. Limits\n4. Help",
@@ -183,7 +396,7 @@ class USSDChannel implements ChannelInterface
             $session->session_id,
             $session->sender,
             $response['next_state'],
-            $session->data,
+            array_merge($session->data, ['action' => $response['action'] ?? null]),
             'ussd'
         );
 
@@ -243,12 +456,31 @@ class USSDChannel implements ChannelInterface
         ];
     }
 
-    protected function handlePin(WhatsAppSessions $session, string $input): array
+    protected function handleTransactionPin(WhatsAppSessions $session, string $input): array
     {
-        // Validate PIN (mock validation)
-        if (strlen($input) !== 4 || !is_numeric($input)) {
+        $chatUser = ChatUser::where('phone_number', $session->sender)->first();
+        
+        if (!$chatUser || !Hash::check($input, $chatUser->pin)) {
             return [
                 'message' => 'Invalid PIN. Please try again.',
+                'type' => 'END'
+            ];
+        }
+
+        $action = $session->data['action'] ?? null;
+        if ($action === 'balance') {
+            return [
+                'message' => "Your balance is:\nKES 25,000.00",
+                'type' => 'END'
+            ];
+        }
+
+        if ($action === 'statement') {
+            return [
+                'message' => "Mini Statement:\n" .
+                            "1. KES 1,000 Sent to 07XXXXXXXX\n" .
+                            "2. KES 500 Airtime Purchase\n" .
+                            "3. KES 2,500 Received",
                 'type' => 'END'
             ];
         }

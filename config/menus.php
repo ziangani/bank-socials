@@ -24,6 +24,19 @@ return [
         ]
     ],
 
+    'unregistered' => [
+        '1' => [
+            'text' => 'Register',
+            'function' => 'handleRegistration',
+            'state' => 'REGISTRATION_INIT'
+        ],
+        '2' => [
+            'text' => 'Help',
+            'function' => 'handleHelp',
+            'state' => 'HELP'
+        ]
+    ],
+
     'registration' => [
         '1' => [
             'text' => 'Account Registration',

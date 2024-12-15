@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Chat;
 
+use App\Services\AuthenticationService;
+use App\Models\ChatUser;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 
 class RegistrationController extends BaseMessageController
 {
@@ -11,9 +14,15 @@ class RegistrationController extends BaseMessageController
         'ACCOUNT_NUMBER_INPUT' => 'ACCOUNT_NUMBER_INPUT',
         'PIN_SETUP' => 'PIN_SETUP',
         'CONFIRM_PIN' => 'CONFIRM_PIN',
-        'PHONE_NUMBER_INPUT' => 'PHONE_NUMBER_INPUT',
         'OTP_VERIFICATION' => 'OTP_VERIFICATION'
     ];
+
+    protected AuthenticationService $authService;
+
+    public function __construct(AuthenticationService $authService)
+    {
+        $this->authService = $authService;
+    }
 
     public function handleRegistration(array $message, array $sessionData): array
     {
@@ -24,7 +33,16 @@ class RegistrationController extends BaseMessageController
             ]);
         }
 
-        // Initialize account registration directly
+        // Check if user is already registered
+        $existingUser = ChatUser::where('phone_number', $message['sender'])->first();
+        if ($existingUser) {
+            return $this->formatTextResponse(
+                "This phone number is already registered.\n\n" .
+                "Reply with 00 to return to main menu."
+            );
+        }
+
+        // Initialize account registration
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
             'data' => [
@@ -51,7 +69,6 @@ class RegistrationController extends BaseMessageController
             self::STATES['ACCOUNT_NUMBER_INPUT'] => $this->processAccountNumberInput($message, $sessionData),
             self::STATES['PIN_SETUP'] => $this->processPinSetup($message, $sessionData),
             self::STATES['CONFIRM_PIN'] => $this->processConfirmPin($message, $sessionData),
-            self::STATES['PHONE_NUMBER_INPUT'] => $this->processPhoneNumberInput($message, $sessionData),
             self::STATES['OTP_VERIFICATION'] => $this->processOtpVerification($message, $sessionData),
             default => $this->handleRegistration($message, $sessionData)
         };
@@ -68,12 +85,20 @@ class RegistrationController extends BaseMessageController
 
         $accountNumber = $message['content'];
 
-        if (!$this->validateAccountNumber($accountNumber)) {
+        // Validate account through AuthenticationService
+        $validation = $this->authService->validateAccountDetails([
+            'account_number' => $accountNumber,
+            'phone_number' => $message['sender']
+        ]);
+
+        if ($validation['status'] !== 'success') {
             if (config('app.debug')) {
-                Log::warning('Invalid account number format');
+                Log::warning('Account validation failed:', $validation);
             }
 
-            return $this->formatTextResponse("Invalid account number. Please enter a 10-digit account number:");
+            return $this->formatTextResponse(
+                "Invalid account number. Please enter a valid 10-digit account number:"
+            );
         }
 
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -85,15 +110,16 @@ class RegistrationController extends BaseMessageController
             ]
         ]);
 
-        return $this->formatTextResponse("Please set up your PIN (must be 4 digits):");
+        return $this->formatTextResponse(
+            "Please set up your PIN for USSD access.\n" .
+            "Enter a 4-digit PIN:"
+        );
     }
 
     protected function processPinSetup(array $message, array $sessionData): array
     {
         if (config('app.debug')) {
-            Log::info('Processing PIN setup:', [
-                'session' => $sessionData
-            ]);
+            Log::info('Processing PIN setup');
         }
 
         $pin = $message['content'];
@@ -121,9 +147,7 @@ class RegistrationController extends BaseMessageController
     protected function processConfirmPin(array $message, array $sessionData): array
     {
         if (config('app.debug')) {
-            Log::info('Processing PIN confirmation:', [
-                'session' => $sessionData
-            ]);
+            Log::info('Processing PIN confirmation');
         }
 
         $confirmPin = $message['content'];
@@ -136,71 +160,67 @@ class RegistrationController extends BaseMessageController
             return $this->formatTextResponse("PINs do not match. Please set up your PIN again (must be 4 digits):");
         }
 
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => $sessionData['state'],
-            'data' => [
-                ...$sessionData['data'],
-                'step' => self::STATES['PHONE_NUMBER_INPUT']
-            ]
+        // Generate OTP through AuthenticationService
+        $otpResult = $this->authService->registerWithAccount([
+            'account_number' => $sessionData['data']['account_number'],
+            'phone_number' => $message['sender'],
+            'pin' => $sessionData['data']['pin']
         ]);
 
-        return $this->formatTextResponse("Please enter your phone number (format: 07XXXXXXXX):");
-    }
-
-    protected function processPhoneNumberInput(array $message, array $sessionData): array
-    {
-        if (config('app.debug')) {
-            Log::info('Processing phone number input:', [
-                'phone' => $message['content'],
-                'session' => $sessionData
-            ]);
+        if ($otpResult['status'] !== 'success') {
+            return $this->formatTextResponse(
+                "Failed to send verification code. Please try again later or contact support."
+            );
         }
-
-        $phoneNumber = $message['content'];
-
-        if (!$this->validatePhoneNumber($phoneNumber)) {
-            if (config('app.debug')) {
-                Log::warning('Invalid phone number format');
-            }
-
-            return $this->formatTextResponse("Invalid phone number. Please enter a valid phone number (format: 07XXXXXXXX):");
-        }
-
-        // Simulate OTP generation and sending (replace with actual implementation)
-        $otp = $this->generateOtp();
 
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => $sessionData['state'],
             'data' => [
                 ...$sessionData['data'],
-                'phone_number' => $phoneNumber,
-                'otp' => $otp,
+                'registration_reference' => $otpResult['data']['reference'],
                 'step' => self::STATES['OTP_VERIFICATION']
             ]
         ]);
 
-        return $this->formatTextResponse("A verification code has been sent to your phone. Please enter the code:");
+        return $this->formatTextResponse(
+            "A verification code has been sent to your WhatsApp number.\n" .
+            "Please enter the code to complete registration:"
+        );
     }
 
     protected function processOtpVerification(array $message, array $sessionData): array
     {
         if (config('app.debug')) {
-            Log::info('Processing OTP verification:', [
-                'session' => $sessionData
-            ]);
+            Log::info('Processing OTP verification');
         }
 
         $otp = $message['content'];
+        $reference = $sessionData['data']['registration_reference'];
 
-//        if ($otp !== $sessionData['data']['otp']) {
-//            if (config('app.debug')) {
-//                Log::warning('Invalid OTP');
-//            }
-//
-//            return $this->formatTextResponse("Invalid verification code. Please try again:");
-//        }
+        // Verify OTP through AuthenticationService
+        $verificationResult = $this->authService->verifyRegistrationOTP(
+            $reference,
+            $otp,
+            [
+                'account_number' => $sessionData['data']['account_number'],
+                'phone_number' => $message['sender']
+            ]
+        );
 
-        $accountNumber = $sessionData['data']['account_number'];
+        if ($verificationResult['status'] !== 'success') {
+            return $this->formatTextResponse(
+                "Invalid verification code. Please try again:"
+            );
+        }
+
+        // Create ChatUser record
+        ChatUser::create([
+            'phone_number' => $message['sender'],
+            'account_number' => $sessionData['data']['account_number'],
+            'pin' => Hash::make($sessionData['data']['pin']),
+            'is_verified' => true,
+            'last_otp_sent_at' => now()
+        ]);
 
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -213,29 +233,13 @@ class RegistrationController extends BaseMessageController
 
         return $this->formatTextResponse(
             "Registration successful! ✅\n\n" .
-            "Your account (*" . substr($accountNumber, -4) . ") has been registered.\n\n" .
+            "Your account (*" . substr($sessionData['data']['account_number'], -4) . ") has been registered.\n\n" .
             "Reply with 00 to return to main menu."
         );
-    }
-
-    protected function validateAccountNumber(string $accountNumber): bool
-    {
-        return preg_match('/^\d{10}$/', $accountNumber);
     }
 
     protected function validatePin(string $pin): bool
     {
         return preg_match('/^\d{4}$/', $pin);
-    }
-
-    protected function validatePhoneNumber(string $phoneNumber): bool
-    {
-        return preg_match('/^07\d{8}$/', $phoneNumber);
-    }
-
-    protected function generateOtp(): string
-    {
-        // Simulate OTP generation (replace with actual implementation)
-        return (string) random_int(100000, 999999);
     }
 }
