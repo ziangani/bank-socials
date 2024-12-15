@@ -75,7 +75,19 @@ class SessionController extends BaseMessageController
 
             // Get welcome message response
             $response = $this->menuController->showMainMenu($parsedMessage);
-            $response['already_sent'] = true; // Prevent double-sending
+
+            // Send response via message adapter
+            $options = [];
+            if ($response['type'] === 'interactive') {
+                $options['buttons'] = $this->messageAdapter->formatButtons($response['buttons']);
+            }
+            $options['message_id'] = $parsedMessage['message_id'];
+            
+            $this->messageAdapter->sendMessage(
+                $parsedMessage['sender'],
+                $response['message'],
+                $options
+            );
 
             // Format response for channel
             $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
