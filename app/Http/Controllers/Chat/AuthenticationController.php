@@ -131,8 +131,9 @@ class AuthenticationController extends BaseMessageController
                         'type' => 'text'
                     ];
                 } else {
-                    // For WhatsApp, initiate OTP verification
-                    return $this->initiateOTPVerification($parsedMessage);
+                    // For WhatsApp, initiate OTP verification and wrap the response in JsonResponse
+                    $otpResponse = $this->initiateOTPVerification($parsedMessage);
+                    return response()->json($this->messageAdapter->formatOutgoingMessage($otpResponse));
                 }
             } else {
                 // For USSD
