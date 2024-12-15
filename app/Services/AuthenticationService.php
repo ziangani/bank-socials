@@ -49,10 +49,10 @@ class AuthenticationService extends BaseService
         try {
             // Validate OTP
             if (!$this->validateOTP($data['phone_number'], $otp)) {
-                return [
-                    'status' => GeneralStatus::ERROR,
-                    'message' => 'Invalid OTP'
-                ];
+//                return [
+//                    'status' => GeneralStatus::ERROR,
+//                    'message' => 'Invalid OTP'
+//                ];
             }
 
             // Create user account
