@@ -10,6 +10,7 @@ use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
 use App\Adapters\WhatsAppMessageAdapter;
 use App\Common\GeneralStatus;
+use Carbon\Carbon;
 
 class RegistrationController extends BaseMessageController
 {
@@ -272,7 +273,7 @@ class RegistrationController extends BaseMessageController
             'phone_number' => $message['sender'],
             'account_number' => $sessionData['data']['account_number'],
             'is_verified' => true,
-            'last_otp_sent_at' => now()
+            'last_otp_sent_at' => Carbon::now()
         ];
 
         // Only include PIN for USSD registrations

@@ -28,7 +28,7 @@ class WhatsAppSessionManager
                 'session_id' => $session->session_id,
                 'sender' => $session->sender,
                 'state' => $session->state,
-                'data' => $session->data,
+                'data' => $session->data ?? [],
                 'created_at' => $session->created_at,
                 'updated_at' => $session->updated_at
             ];
@@ -44,16 +44,27 @@ class WhatsAppSessionManager
             // End any existing active sessions for this sender
             WhatsAppSessions::endActiveSessions($data['sender']);
 
-            // Create new session
+            // Safely get message_id from nested data
+            $messageId = null;
+            if (isset($data['data']) && is_array($data['data']) && isset($data['data']['message_id'])) {
+                $messageId = $data['data']['message_id'];
+            }
+
+            // Create new session with safely merged data
+            $sessionData = array_merge($data['data'] ?? [], [
+                'business_phone_id' => $data['business_phone_id'] ?? null,
+                'message_id' => $messageId,
+                'contact_name' => $data['contact_name'] ?? null,
+                'authenticated_at' => null,
+                'otp_verified' => false
+            ]);
+
+            // Create new session state
             $session = WhatsAppSessions::createNewState(
                 $data['session_id'],
                 $data['sender'],
                 $data['state'] ?? 'INIT',
-                array_merge($data['data'] ?? [], [
-                    'business_phone_id' => $data['business_phone_id'] ?? null,
-                    'message_id' => $data['data']['message_id'] ?? null,
-                    'contact_name' => $data['contact_name'] ?? null
-                ]),
+                $sessionData,
                 $this->channel
             );
 
@@ -73,12 +84,18 @@ class WhatsAppSessionManager
                 return false;
             }
 
+            // Safely merge current session data with new data
+            $mergedData = array_merge(
+                $currentSession->data ?? [],
+                $data['data'] ?? []
+            );
+
             // Create new session state
             WhatsAppSessions::createNewState(
                 $sessionId,
                 $currentSession->sender,
                 $data['state'] ?? $currentSession->state,
-                array_merge($currentSession->data ?? [], $data['data'] ?? []),
+                $mergedData,
                 $this->channel
             );
 
