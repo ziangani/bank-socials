@@ -171,10 +171,7 @@ class ChatController extends BaseMessageController
     {
         if (!$chatUser) {
             if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
-                return [
-                    'message' => "Welcome to Social Banking!\n\nYou are not registered. Please register to continue.",
-                    'type' => 'text'
-                ];
+                return $this->menuController->showUnregisteredMenu($message);
             } else {
                 // For USSD
                 return [
