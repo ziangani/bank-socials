@@ -108,69 +108,23 @@ class AuthenticationController extends BaseMessageController
                 $this->messageAdapter->endSession($parsedMessage['session_id']);
             }
 
-            // Create new session in WELCOME state
-            $this->messageAdapter->createSession([
-                'session_id' => $parsedMessage['session_id'],
-                'sender' => $parsedMessage['sender'],
-                'state' => 'WELCOME',
-                'data' => [
-                    'authenticated_at' => null,
-                    'otp_verified' => false,
-                    'last_message' => $parsedMessage['content']
-                ]
-            ]);
-
-            // Check if user is registered
-            $chatUser = ChatUser::where('phone_number', $parsedMessage['sender'])->first();
-
-            // Prepare response based on channel and registration status
-            if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
-                if (!$chatUser) {
-                    $response = [
-                        'message' => "Welcome to Social Banking!\n\nYou are not registered. Please register to continue.",
-                        'type' => 'text'
-                    ];
-                    
-                    // Send response via message adapter
-                    $this->messageAdapter->sendMessage(
-                        $parsedMessage['sender'],
-                        $response['message'],
-                        ['message_id' => $parsedMessage['message_id']]
-                    );
-                    
-                    // Format and return response
-                    $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
-                    return response()->json($formattedResponse);
-                } else {
-                    // For WhatsApp, initiate OTP verification and wrap the response in JsonResponse
-                    $otpResponse = $this->initiateOTPVerification($parsedMessage);
-                    return response()->json($this->messageAdapter->formatOutgoingMessage($otpResponse));
-                }
-            } else {
-                // For USSD
-                if (!$chatUser) {
-                    $response = [
-                        'message' => "Welcome to Social Banking\n1. Register\n2. Help",
-                        'type' => 'text'
-                    ];
-                } else {
-                    $response = [
-                        'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
-                        'type' => 'text'
-                    ];
-                }
-                
-                // Send response via message adapter
-                $this->messageAdapter->sendMessage(
-                    $parsedMessage['sender'],
-                    $response['message'],
-                    ['message_id' => $parsedMessage['message_id']]
-                );
-
-                // Format response for channel
-                $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
-                return response()->json($formattedResponse);
-            }
+            // Send goodbye message
+            $response = [
+                'message' => "Thank you for using Social Banking. Goodbye! 👋",
+                'type' => 'text',
+                'end_session' => true
+            ];
+            
+            // Send response via message adapter
+            $this->messageAdapter->sendMessage(
+                $parsedMessage['sender'],
+                $response['message'],
+                ['message_id' => $parsedMessage['message_id']]
+            );
+            
+            // Format and return response
+            $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
+            return response()->json($formattedResponse);
 
         } catch (\Exception $e) {
             Log::error('Logout error: ' . $e->getMessage());

@@ -3,21 +3,16 @@
 return [
     'main' => [
         '1' => [
-            'text' => 'Register',
-            'function' => 'handleRegistration',
-            'state' => 'REGISTRATION_INIT'
-        ],
-        '2' => [
             'text' => 'Money Transfer',
             'function' => 'handleTransfer',
             'state' => 'TRANSFER_INIT'
         ],
-        '3' => [
+        '2' => [
             'text' => 'Bill Payments',
             'function' => 'handleBillPayment',
             'state' => 'BILL_PAYMENT_INIT'
         ],
-        '4' => [
+        '3' => [
             'text' => 'Account Services',
             'function' => 'handleAccountServices',
             'state' => 'SERVICES_INIT'
