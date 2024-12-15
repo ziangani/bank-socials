@@ -63,8 +63,13 @@ class StateController extends BaseMessageController
             ]);
         }
 
-        // Process OTP verification if needed
+        // Process OTP verification based on context
         if ($state === 'OTP_VERIFICATION') {
+            // Check if this is a registration OTP verification
+            if (isset($sessionData['data']['step']) && $sessionData['data']['step'] === 'OTP_VERIFICATION') {
+                return $this->registrationController->processAccountRegistration($message, $sessionData);
+            }
+            // Otherwise, it's an authentication OTP verification
             return $this->authenticationController->processOTPVerification($message, $sessionData);
         }
 

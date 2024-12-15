@@ -136,8 +136,9 @@ class RegistrationController extends BaseMessageController
                 'step' => self::STATES['OTP_VERIFICATION']
             ]);
 
+            // Set both state and step to OTP_VERIFICATION for consistency
             $this->messageAdapter->updateSession($message['session_id'], [
-                'state' => 'ACCOUNT_REGISTRATION',
+                'state' => 'OTP_VERIFICATION',
                 'data' => $sessionDataMerged
             ]);
 
@@ -238,8 +239,9 @@ class RegistrationController extends BaseMessageController
             'step' => self::STATES['OTP_VERIFICATION']
         ]);
 
+        // Set both state and step to OTP_VERIFICATION for consistency
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => $sessionData['state'],
+            'state' => 'OTP_VERIFICATION',
             'data' => $sessionDataMerged
         ]);
 
@@ -294,7 +296,7 @@ class RegistrationController extends BaseMessageController
                 $userData // The values to update or create with
             );
 
-            // Set session state to REGISTRATION_SUCCESS instead of WELCOME
+            // Set session state to REGISTRATION_SUCCESS
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'REGISTRATION_SUCCESS',
                 'data' => [
