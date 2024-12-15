@@ -427,7 +427,7 @@ class ChatController extends BaseMessageController
 
                 // For account services, we'll use text menu instead of interactive buttons
                 if ($option['state'] === 'SERVICES_INIT') {
-                    $servicesMenu = $this->getMenuConfig('services');
+                    $servicesMenu = $this->getMenuConfig('account_services');
                     $menuText = "Account Services Menu:\n\n";
                     
                     foreach ($servicesMenu as $serviceKey => $serviceOption) {
