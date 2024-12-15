@@ -51,7 +51,7 @@ class StateController extends BaseMessageController
         // Check if user is registered
         $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         
-        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION', 'HELP'])) {
+        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION', 'REGISTRATION_SUCCESS', 'HELP'])) {
             return $this->menuController->showUnregisteredMenu($message);
         }
 
@@ -68,6 +68,21 @@ class StateController extends BaseMessageController
             return $this->authenticationController->processOTPVerification($message, $sessionData);
         }
 
+        // Handle registration success state
+        if ($state === 'REGISTRATION_SUCCESS') {
+            // Update session to WELCOME state for next message
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'WELCOME'
+            ]);
+            
+            // Show success message with registered account number
+            return $this->formatTextResponse(
+                "Registration successful! ✅\n\n" .
+                "Your account (*" . substr($sessionData['data']['account_number'], -4) . ") has been registered.\n\n" .
+                "Reply with 00 to return to main menu."
+            );
+        }
+
         // Main menu states
         if (in_array($state, ['WELCOME'])) {
             return $this->menuController->processWelcomeInput($message, $sessionData);
@@ -80,11 +95,11 @@ class StateController extends BaseMessageController
 
         // Registration states
         if (in_array($state, ['REGISTRATION_INIT', 'ACCOUNT_REGISTRATION'])) {
-            return match($state) {
-                'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
-                'ACCOUNT_REGISTRATION' => $this->registrationController->processAccountRegistration($message, $sessionData),
-                default => $this->menuController->handleUnknownState($message, $sessionData)
-            };
+            if ($state === 'REGISTRATION_INIT') {
+                return $this->registrationController->handleRegistration($message, $sessionData);
+            } else {
+                return $this->registrationController->processAccountRegistration($message, $sessionData);
+            }
         }
 
         // Check authentication for protected states
@@ -99,11 +114,11 @@ class StateController extends BaseMessageController
 
         // Bill payment states
         if (in_array($state, ['BILL_PAYMENT_INIT', 'BILL_PAYMENT'])) {
-            return match($state) {
-                'BILL_PAYMENT_INIT' => $this->billPaymentController->handleBillPayment($message, $sessionData),
-                'BILL_PAYMENT' => $this->billPaymentController->processBillPayment($message, $sessionData),
-                default => $this->menuController->handleUnknownState($message, $sessionData)
-            };
+            if ($state === 'BILL_PAYMENT_INIT') {
+                return $this->billPaymentController->handleBillPayment($message, $sessionData);
+            } else {
+                return $this->billPaymentController->processBillPayment($message, $sessionData);
+            }
         }
 
         // Account services states
@@ -131,12 +146,15 @@ class StateController extends BaseMessageController
                     ]);
 
                     // Route to appropriate transfer handler
-                    return match($option['state']) {
-                        'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
-                        'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
-                        'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
-                        default => $this->menuController->handleUnknownState($message, $sessionData)
-                    };
+                    if ($option['state'] === 'INTERNAL_TRANSFER') {
+                        return $this->transferController->processInternalTransfer($message, $sessionData);
+                    } elseif ($option['state'] === 'BANK_TRANSFER') {
+                        return $this->transferController->processBankTransfer($message, $sessionData);
+                    } elseif ($option['state'] === 'MOBILE_MONEY_TRANSFER') {
+                        return $this->transferController->processMobileMoneyTransfer($message, $sessionData);
+                    } else {
+                        return $this->menuController->handleUnknownState($message, $sessionData);
+                    }
                 }
             }
 
@@ -148,13 +166,17 @@ class StateController extends BaseMessageController
         }
 
         // Process based on current transfer state
-        return match ($state) {
-            'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
-            'INTERNAL_TRANSFER' => $this->transferController->processInternalTransfer($message, $sessionData),
-            'BANK_TRANSFER' => $this->transferController->processBankTransfer($message, $sessionData),
-            'MOBILE_MONEY_TRANSFER' => $this->transferController->processMobileMoneyTransfer($message, $sessionData),
-            default => $this->menuController->handleUnknownState($message, $sessionData)
-        };
+        if ($state === 'TRANSFER_INIT') {
+            return $this->transferController->handleTransfer($message, $sessionData);
+        } elseif ($state === 'INTERNAL_TRANSFER') {
+            return $this->transferController->processInternalTransfer($message, $sessionData);
+        } elseif ($state === 'BANK_TRANSFER') {
+            return $this->transferController->processBankTransfer($message, $sessionData);
+        } elseif ($state === 'MOBILE_MONEY_TRANSFER') {
+            return $this->transferController->processMobileMoneyTransfer($message, $sessionData);
+        } else {
+            return $this->menuController->handleUnknownState($message, $sessionData);
+        }
     }
 
     /**
@@ -166,12 +188,16 @@ class StateController extends BaseMessageController
             return $this->accountServicesController->handleAccountServices($message, $sessionData);
         }
 
-        return match ($state) {
-            'BALANCE_INQUIRY' => $this->accountServicesController->processBalanceInquiry($message, $sessionData),
-            'MINI_STATEMENT' => $this->accountServicesController->processMiniStatement($message, $sessionData),
-            'FULL_STATEMENT' => $this->accountServicesController->processFullStatement($message, $sessionData),
-            'PIN_MANAGEMENT' => $this->accountServicesController->processPINManagement($message, $sessionData),
-            default => $this->menuController->handleUnknownState($message, $sessionData)
-        };
+        if ($state === 'BALANCE_INQUIRY') {
+            return $this->accountServicesController->processBalanceInquiry($message, $sessionData);
+        } elseif ($state === 'MINI_STATEMENT') {
+            return $this->accountServicesController->processMiniStatement($message, $sessionData);
+        } elseif ($state === 'FULL_STATEMENT') {
+            return $this->accountServicesController->processFullStatement($message, $sessionData);
+        } elseif ($state === 'PIN_MANAGEMENT') {
+            return $this->accountServicesController->processPINManagement($message, $sessionData);
+        } else {
+            return $this->menuController->handleUnknownState($message, $sessionData);
+        }
     }
 }

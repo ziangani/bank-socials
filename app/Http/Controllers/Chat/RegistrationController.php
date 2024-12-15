@@ -142,8 +142,9 @@ class RegistrationController extends BaseMessageController
             ]);
 
             return $this->formatTextResponse(
-                "A verification code has been sent to your WhatsApp number.\n" .
-                "Please enter the code to complete registration:"
+                "Welcome back to Social Banking!\n\n" .
+                "Please enter the 6-digit OTP sent to your number via SMS.\n\n" .
+                "Test OTP: " . $otpResult['data']['otp']
             );
         }
 
@@ -293,13 +294,16 @@ class RegistrationController extends BaseMessageController
                 $userData // The values to update or create with
             );
 
-            // Reset session to welcome state
+            // Set session state to REGISTRATION_SUCCESS instead of WELCOME
             $this->messageAdapter->updateSession($message['session_id'], [
-                'state' => 'WELCOME'
+                'state' => 'REGISTRATION_SUCCESS',
+                'data' => [
+                    'account_number' => $sessionData['data']['account_number']
+                ]
             ]);
 
             if (config('app.debug')) {
-                Log::info('Registration successful, returning to welcome state');
+                Log::info('Registration successful, state set to REGISTRATION_SUCCESS');
             }
 
             return $this->formatTextResponse(
