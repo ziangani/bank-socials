@@ -7,6 +7,7 @@ use App\Services\SessionManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\ChatUser;
+use App\Models\ChatUserLogin;
 use App\Adapters\WhatsAppMessageAdapter;
 
 class ChatController extends BaseMessageController
@@ -71,7 +72,12 @@ class ChatController extends BaseMessageController
             if ($parsedMessage['content'] === '00') {
                 return $this->sessionController->handleReturnToMainMenu($parsedMessage);
             }
-            
+
+            // Get chat user and active login
+            $chatUser = ChatUser::where('phone_number', $parsedMessage['sender'])->first();
+            $activeLogin = ChatUserLogin::getActiveLogin($parsedMessage['sender']);
+            $isAuthenticated = $activeLogin && $activeLogin->isValid();
+
             // Get or create session
             $sessionData = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
 
@@ -93,14 +99,30 @@ class ChatController extends BaseMessageController
                     ],
                 ]);
 
-                $response = $this->handleWelcome($parsedMessage);
+                $response = $this->handleWelcome($parsedMessage, $chatUser, $isAuthenticated);
             } else {
-                // Process based on current state
-                $response = $this->stateController->processState(
-                    $sessionData['state'],
-                    $parsedMessage,
-                    $sessionData
-                );
+                // Check if authentication is required for current state
+                $requiresAuth = !in_array($sessionData['state'], ['WELCOME', 'OTP_VERIFICATION']);
+                
+                if ($requiresAuth && !$isAuthenticated) {
+                    // User needs to authenticate
+                    $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                        'state' => 'OTP_VERIFICATION'
+                    ]);
+                    $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                } else {
+                    // Add authenticated user to session data if available
+                    if ($isAuthenticated) {
+                        $sessionData['authenticated_user'] = $activeLogin->chatUser;
+                    }
+
+                    // Process based on current state
+                    $response = $this->stateController->processState(
+                        $sessionData['state'],
+                        $parsedMessage,
+                        $sessionData
+                    );
+                }
             }
 
             // Mark message as processed
@@ -145,10 +167,8 @@ class ChatController extends BaseMessageController
     /**
      * Handle welcome state
      */
-    protected function handleWelcome(array $message): array
+    protected function handleWelcome(array $message, ?ChatUser $chatUser, bool $isAuthenticated): array
     {
-        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
-        
         if (!$chatUser) {
             if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
                 return [
@@ -165,7 +185,7 @@ class ChatController extends BaseMessageController
         }
 
         // User is registered, check if authenticated
-        if (!isset($message['session_id']) || !$this->authenticationController->isUserAuthenticated($message['session_id'])) {
+        if (!$isAuthenticated) {
             if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
                 // For WhatsApp, initiate OTP verification
                 return $this->authenticationController->initiateOTPVerification($message);

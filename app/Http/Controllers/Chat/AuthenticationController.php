@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Chat;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use App\Models\ChatUser;
+use App\Models\ChatUserLogin;
 use App\Adapters\WhatsAppMessageAdapter;
 
 class AuthenticationController extends BaseMessageController
@@ -65,14 +66,21 @@ class AuthenticationController extends BaseMessageController
             ];
         }
 
-        // Mark session as authenticated
+        // Get chat user
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+        if (!$chatUser) {
+            return [
+                'message' => "User not found. Please register first.",
+                'type' => 'text'
+            ];
+        }
+
+        // Create new login record
+        ChatUserLogin::createLogin($chatUser, $message['session_id']);
+
+        // Update session state
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'WELCOME',
-            'data' => [
-                ...$sessionData['data'],
-                'otp_verified' => true,
-                'authenticated_at' => now()
-            ]
+            'state' => 'WELCOME'
         ]);
 
         return app(MenuController::class)->showMainMenu($message);
@@ -81,20 +89,10 @@ class AuthenticationController extends BaseMessageController
     /**
      * Check if user is authenticated in current session
      */
-    public function isUserAuthenticated(string $sessionId): bool
+    public function isUserAuthenticated(string $phoneNumber): bool
     {
-        $sessionData = $this->messageAdapter->getSessionData($sessionId);
-        if (!$sessionData) {
-            return false;
-        }
-
-        $authenticatedAt = $sessionData['data']['authenticated_at'] ?? null;
-        if (!$authenticatedAt) {
-            return false;
-        }
-
-        // Authentication valid for 30 minutes
-        return !Carbon::parse($authenticatedAt)->addMinutes(30)->isPast();
+        $activeLogin = ChatUserLogin::getActiveLogin($phoneNumber);
+        return $activeLogin && $activeLogin->isValid();
     }
 
     /**
@@ -103,6 +101,12 @@ class AuthenticationController extends BaseMessageController
     public function handleLogout(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
         try {
+            // Deactivate any active logins
+            $activeLogin = ChatUserLogin::getActiveLogin($parsedMessage['sender']);
+            if ($activeLogin) {
+                $activeLogin->deactivate();
+            }
+
             // End the current session
             if ($parsedMessage['session_id']) {
                 $this->messageAdapter->endSession($parsedMessage['session_id']);

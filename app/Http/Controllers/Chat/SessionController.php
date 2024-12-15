@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
+use App\Models\ChatUserLogin;
 
 class SessionController extends BaseMessageController
 {
@@ -54,25 +55,11 @@ class SessionController extends BaseMessageController
     public function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
         try {
-            // Get current session data to preserve authentication state
-            $currentSession = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
-            $authData = [];
-            
-            // Preserve authentication data if it exists
-            if ($currentSession && isset($currentSession['data'])) {
-                if (isset($currentSession['data']['authenticated_at'])) {
-                    $authData['authenticated_at'] = $currentSession['data']['authenticated_at'];
-                }
-                if (isset($currentSession['data']['otp_verified'])) {
-                    $authData['otp_verified'] = $currentSession['data']['otp_verified'];
-                }
-            }
-
             // End current session
             if ($parsedMessage['session_id']) {
                 $this->messageAdapter->endSession($parsedMessage['session_id']);
                 
-                // Create a new session while preserving authentication state
+                // Create a new clean session
                 $this->messageAdapter->createSession([
                     'session_id' => $parsedMessage['session_id'],
                     'sender' => $parsedMessage['sender'],
@@ -81,8 +68,7 @@ class SessionController extends BaseMessageController
                         'session_id' => $parsedMessage['session_id'],
                         'message_id' => $parsedMessage['message_id'],
                         'sender' => $parsedMessage['sender'],
-                        'last_message' => '00',
-                        ...$authData // Include preserved authentication data
+                        'last_message' => '00'
                     ]
                 ]);
             }
@@ -108,6 +94,12 @@ class SessionController extends BaseMessageController
      */
     public function handleExitCommand(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
+        // Deactivate any active logins
+        $activeLogin = ChatUserLogin::getActiveLogin($parsedMessage['sender']);
+        if ($activeLogin) {
+            $activeLogin->deactivate();
+        }
+
         // End the session
         if ($parsedMessage['session_id']) {
             $this->messageAdapter->endSession($parsedMessage['session_id']);
