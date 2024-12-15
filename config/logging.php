@@ -4,6 +4,7 @@ use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
+use Monolog\Formatter\LineFormatter;
 
 return [
 
@@ -63,6 +64,25 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
+            'tap' => [function($logger) {
+                // Get the first handler (usually StreamHandler)
+                $handler = $logger->getHandlers()[0];
+                
+                // Create a new formatter with null as the dateFormat to prevent timestamp modification
+                $formatter = new LineFormatter(
+                    null, // Use default format
+                    null, // Use default date format
+                    true, // allowInlineLineBreaks
+                    true, // ignoreEmptyContextAndExtra
+                    true  // includeStacktraces
+                );
+                
+                // Set maximum normalization depth
+                $formatter->setMaxNormalizeDepth(5); // Reduce nesting depth
+                
+                // Set the formatter
+                $handler->setFormatter($formatter);
+            }],
         ],
 
         'daily' => [
@@ -71,6 +91,18 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
+            'tap' => [function($logger) {
+                $handler = $logger->getHandlers()[0];
+                $formatter = new LineFormatter(
+                    null,
+                    null,
+                    true,
+                    true,
+                    true
+                );
+                $formatter->setMaxNormalizeDepth(5);
+                $handler->setFormatter($formatter);
+            }],
         ],
 
         'slack' => [
