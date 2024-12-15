@@ -317,7 +317,7 @@ class TransferController extends BaseMessageController
             'mobile' => 'mobile money transfer'
         ];
 
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
 
         return "Please confirm {$typeLabels[$type]}:\n\n" .
                "Recipient: {$recipient}\n" .
@@ -327,7 +327,7 @@ class TransferController extends BaseMessageController
 
     protected function formatSuccessMessage(string $type, string $recipient, string $amount): string
     {
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
 
         return "Transfer successful! ✅\n\n" .
                "Amount: {$currency} {$amount}\n" .

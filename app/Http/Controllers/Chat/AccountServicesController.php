@@ -118,7 +118,7 @@ class AccountServicesController extends BaseMessageController
 
         // Simulate balance fetch (replace with actual implementation)
         $balance = $this->getAccountBalance();
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
 
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -183,7 +183,7 @@ class AccountServicesController extends BaseMessageController
 
         // Simulate fetching mini statement (replace with actual implementation)
         $transactions = $this->getMiniStatement();
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
         
         // Format transactions into readable text
         $statementText = "Last 5 Transactions:\n\n";
@@ -317,7 +317,7 @@ class AccountServicesController extends BaseMessageController
 
         // Simulate fetching full statement (replace with actual implementation)
         $transactions = $this->getFullStatement($sessionData['data']['start_date'], $endDate);
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
         
         // Format transactions into readable text
         $statementText = "Statement for {$sessionData['data']['start_date']} to {$endDate}:\n\n";

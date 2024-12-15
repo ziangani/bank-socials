@@ -241,7 +241,7 @@ class BillPaymentController extends BaseMessageController
 
         $billType = $sessionData['data']['bill_type'];
         $accountNumber = $sessionData['data']['account_number'];
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
 
         // Update session with amount and move to confirmation
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -376,7 +376,7 @@ class BillPaymentController extends BaseMessageController
 
     protected function formatSuccessMessage(string $billType, string $accountNumber, string $amount): string
     {
-        $currency = config('social-banking.currency', 'KES');
+        $currency = config('social-banking.currency', 'MWK');
 
         return "Payment successful! ✅\n\n" .
                "Bill Type: {$billType}\n" .
