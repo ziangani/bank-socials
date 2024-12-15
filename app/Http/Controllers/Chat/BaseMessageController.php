@@ -26,13 +26,10 @@ class BaseMessageController extends Controller
 
     protected function formatMenuResponse(string $message, array $menu, bool $endSession = false): array
     {
-        // Log the menu array before any transformation
-        Log::info('Original menu array:', $menu);
-        
-        $menuButtons = array_column($menu, 'text');
-        
-        // Log the transformed menu array
-        Log::info('Transformed menu buttons:', $menuButtons);
+        // Extract button texts, handling both formats
+        $menuButtons = array_map(function($item) {
+            return is_array($item) ? ($item['text'] ?? '') : $item;
+        }, array_values($menu));
         
         return [
             'message' => $message,

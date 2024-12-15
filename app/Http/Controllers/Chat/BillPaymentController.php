@@ -77,21 +77,27 @@ class BillPaymentController extends BaseMessageController
                 ]
             ]);
 
-            return $this->formatMenuResponse(
-                "Please select the type of bill to pay:\n\n",
-                [
-                    '1' => ['text' => 'Electricity'],
-                    '2' => ['text' => 'Water'],
-                    '3' => ['text' => 'TV Subscription'],
-                    '4' => ['text' => 'Internet']
-                ]
-            );
+            // Build message showing all bill types
+            $messageText = "Please select the type of bill to pay:\n\n";
+            foreach (self::BILL_TYPES as $key => $type) {
+                $messageText .= "{$key}. {$type['name']}\n";
+            }
+            $messageText .= "\nEnter the number of your selection:";
+
+            // Only show first 3 as buttons for quick access
+            $buttons = [];
+            $count = 0;
+            foreach (self::BILL_TYPES as $key => $type) {
+                if ($count >= 3) break;
+                $buttons[$key] = ['text' => $type['name']];
+                $count++;
+            }
+
+            return $this->formatMenuResponse($messageText, $buttons);
         } catch (\Exception $e) {
             Log::error('Failed to initialize bill payment', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }
@@ -101,9 +107,8 @@ class BillPaymentController extends BaseMessageController
     {
         try {
             Log::info('Processing bill payment step', [
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null,
-                'step' => $sessionData['data']['step'] ?? null
+                'step' => $sessionData['data']['step'] ?? null,
+                'content' => $message['content'] ?? null
             ]);
 
             $currentStep = $sessionData['data']['step'] ?? null;
@@ -118,10 +123,7 @@ class BillPaymentController extends BaseMessageController
         } catch (\Exception $e) {
             Log::error('Failed to process bill payment step', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null,
-                'step' => $sessionData['data']['step'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }
@@ -132,26 +134,31 @@ class BillPaymentController extends BaseMessageController
         try {
             $selection = $message['content'];
             Log::info('Processing bill type selection', [
-                'selection' => $selection,
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'selection' => $selection
             ]);
             
             if (!isset(self::BILL_TYPES[$selection])) {
                 Log::warning('Invalid bill type selection', [
-                    'selection' => $selection,
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null
+                    'selection' => $selection
                 ]);
-                return $this->formatMenuResponse(
-                    "Invalid selection. Please select a valid bill type:\n\n",
-                    [
-                        '1' => ['text' => 'Electricity'],
-                        '2' => ['text' => 'Water'],
-                        '3' => ['text' => 'TV Subscription'],
-                        '4' => ['text' => 'Internet']
-                    ]
-                );
+
+                // Build message showing all bill types again
+                $messageText = "Invalid selection. Please select a valid bill type:\n\n";
+                foreach (self::BILL_TYPES as $key => $type) {
+                    $messageText .= "{$key}. {$type['name']}\n";
+                }
+                $messageText .= "\nEnter the number of your selection:";
+
+                // Only show first 3 as buttons for quick access
+                $buttons = [];
+                $count = 0;
+                foreach (self::BILL_TYPES as $key => $type) {
+                    if ($count >= 3) break;
+                    $buttons[$key] = ['text' => $type['name']];
+                    $count++;
+                }
+
+                return $this->formatMenuResponse($messageText, $buttons);
             }
 
             $billType = self::BILL_TYPES[$selection];
@@ -169,10 +176,7 @@ class BillPaymentController extends BaseMessageController
         } catch (\Exception $e) {
             Log::error('Failed to process bill type selection', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null,
-                'selection' => $message['content'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }
@@ -186,18 +190,14 @@ class BillPaymentController extends BaseMessageController
             
             Log::info('Processing bill account input', [
                 'account_number' => $accountNumber,
-                'bill_type' => $billType['code'],
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'bill_type' => $billType['code']
             ]);
             
             // Validate account number format
             if (!preg_match($billType['pattern'], $accountNumber)) {
                 Log::warning('Invalid bill account format', [
                     'account_number' => $accountNumber,
-                    'expected_pattern' => $billType['pattern'],
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null
+                    'expected_pattern' => $billType['pattern']
                 ]);
                 return $this->formatTextResponse(
                     "Invalid account number format. Please enter a {$billType['length']}-digit account number for {$billType['name']}:"
@@ -209,10 +209,7 @@ class BillPaymentController extends BaseMessageController
             if ($validation['status'] !== GeneralStatus::SUCCESS) {
                 Log::warning('Bill account validation failed', [
                     'account_number' => $accountNumber,
-                    'bill_type' => $billType['code'],
-                    'error' => $validation['message'],
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null
+                    'error' => $validation['message']
                 ]);
                 return $this->formatTextResponse(
                     "Invalid account number. Please check and try again.\n\nReply with 00 to return to main menu."
@@ -247,10 +244,7 @@ class BillPaymentController extends BaseMessageController
         } catch (\Exception $e) {
             Log::error('Failed to process bill account input', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null,
-                'account_number' => $message['content'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }
@@ -262,17 +256,13 @@ class BillPaymentController extends BaseMessageController
             $amount = $message['content'];
             
             Log::info('Processing bill amount input', [
-                'amount' => $amount,
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'amount' => $amount
             ]);
             
             // Validate amount
             if (!is_numeric($amount) || $amount <= 0) {
                 Log::warning('Invalid bill amount', [
-                    'amount' => $amount,
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null
+                    'amount' => $amount
                 ]);
                 return $this->formatTextResponse("Invalid amount. Please enter a valid number:");
             }
@@ -281,10 +271,7 @@ class BillPaymentController extends BaseMessageController
         } catch (\Exception $e) {
             Log::error('Failed to process bill amount input', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null,
-                'amount' => $message['content'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }
@@ -296,9 +283,7 @@ class BillPaymentController extends BaseMessageController
             Log::info('Preparing bill payment confirmation', [
                 'bill_type' => $sessionData['data']['bill_type']['code'],
                 'account_number' => $sessionData['data']['account_number'],
-                'amount' => $amount,
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'amount' => $amount
             ]);
 
             $billType = $sessionData['data']['bill_type'];
@@ -333,9 +318,7 @@ class BillPaymentController extends BaseMessageController
         } catch (\Exception $e) {
             Log::error('Failed to prepare bill payment confirmation', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }
@@ -347,9 +330,7 @@ class BillPaymentController extends BaseMessageController
             $response = $message['content'];
             
             Log::info('Processing bill payment confirmation', [
-                'response' => $response,
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'response' => $response
             ]);
 
             if ($response === '2' || strtolower($response) === 'cancel') {
@@ -358,18 +339,13 @@ class BillPaymentController extends BaseMessageController
                     'state' => 'WELCOME'
                 ]);
 
-                Log::info('Bill payment cancelled by user', [
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null
-                ]);
+                Log::info('Bill payment cancelled by user');
                 return $this->formatTextResponse("Payment cancelled. Reply with 00 to return to main menu.");
             }
 
             if ($response !== '1' && strtolower($response) !== 'confirm') {
                 Log::warning('Invalid payment confirmation response', [
-                    'response' => $response,
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null
+                    'response' => $response
                 ]);
                 return $this->formatMenuResponse(
                     "Invalid response. Please confirm or cancel the payment:",
@@ -391,11 +367,7 @@ class BillPaymentController extends BaseMessageController
 
             if ($paymentResult['status'] !== GeneralStatus::SUCCESS) {
                 Log::error('Bill payment processing failed', [
-                    'error' => $paymentResult['message'],
-                    'message_id' => $message['id'] ?? null,
-                    'session_id' => $message['session_id'] ?? null,
-                    'bill_type' => $sessionData['data']['bill_type']['code'],
-                    'bill_account' => $sessionData['data']['account_number']
+                    'error' => $paymentResult['message']
                 ]);
                 return $this->formatTextResponse(
                     "Payment failed: {$paymentResult['message']}\n\nReply with 00 to return to main menu."
@@ -408,8 +380,6 @@ class BillPaymentController extends BaseMessageController
             ]);
 
             Log::info('Bill payment completed successfully', [
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null,
                 'reference' => $paymentResult['data']['reference']
             ]);
 
@@ -424,9 +394,7 @@ class BillPaymentController extends BaseMessageController
         } catch (\Exception $e) {
             Log::error('Failed to process bill payment confirmation', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'message_id' => $message['id'] ?? null,
-                'session_id' => $message['session_id'] ?? null
+                'trace' => $e->getTraceAsString()
             ]);
             return $this->formatTextResponse("Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.");
         }

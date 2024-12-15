@@ -21,17 +21,19 @@ class WhatsAppService
     {
         $buttons = [];
         $index = 1; // Start from 1
-        foreach ($buttonsList as $title) {
+        foreach ($buttonsList as $button) {
+            // Handle both formats: direct text and array with 'text' key
+            $title = is_array($button) ? ($button['text'] ?? '') : $button;
             $buttons[] = [
                 'type' => 'reply',
                 'reply' => [
                     'id' => (string)$index,
-                    'title' => substr($title['reply']['title'] ?? $title, 0, 20)
+                    'title' => $index . '. ' . substr($title, 0, 18) // WhatsApp button title limit minus prefix
                 ]
             ];
             $index++;
         }
-        $buttons = array_slice($buttons, 0, 3);
+        $buttons = array_slice($buttons, 0, 3); // WhatsApp limit of 3 buttons
 
         $payload = [
             'messaging_product' => 'whatsapp',
@@ -46,11 +48,14 @@ class WhatsAppService
                 'action' => [
                     'buttons' => $buttons
                 ]
-            ],
-            'context' => [
-                'message_id' => $messageId,
-            ],
+            ]
         ];
+
+        if ($messageId) {
+            $payload['context'] = [
+                'message_id' => $messageId,
+            ];
+        }
 
         // Log the complete payload being sent to Meta
         Log::info('WhatsApp API Request Payload:', $payload);
@@ -263,5 +268,4 @@ class WhatsAppService
 
         return true;
     }
-
 }
