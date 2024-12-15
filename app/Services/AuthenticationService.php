@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Common\GeneralStatus;
-use App\Models\User;
+use App\Models\ChatUser;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
@@ -57,8 +57,8 @@ class AuthenticationService extends BaseService
                 }
             }
 
-            // Create user account
-            $user = $this->createUserAccount($data);
+            // Create chat user account
+            $user = $this->createChatUserAccount($data);
 
             return [
                 'status' => GeneralStatus::SUCCESS,
@@ -89,8 +89,8 @@ class AuthenticationService extends BaseService
             }
 
             // Update user's PIN
-            $user = User::find($userId);
-            $user->transaction_pin = Hash::make($pin);
+            $user = ChatUser::find($userId);
+            $user->pin = Hash::make($pin);
             $user->save();
 
             return [
@@ -109,10 +109,10 @@ class AuthenticationService extends BaseService
     public function changePIN(string $userId, string $oldPin, string $newPin): array
     {
         try {
-            $user = User::find($userId);
+            $user = ChatUser::find($userId);
 
             // Validate old PIN
-            if (!Hash::check($oldPin, $user->transaction_pin)) {
+            if (!Hash::check($oldPin, $user->pin)) {
                 return [
                     'status' => GeneralStatus::ERROR,
                     'message' => 'Invalid current PIN'
@@ -128,7 +128,7 @@ class AuthenticationService extends BaseService
             }
 
             // Update PIN
-            $user->transaction_pin = Hash::make($newPin);
+            $user->pin = Hash::make($newPin);
             $user->save();
 
             return [
@@ -147,7 +147,7 @@ class AuthenticationService extends BaseService
     public function resetPIN(string $userId): array
     {
         try {
-            $user = User::find($userId);
+            $user = ChatUser::find($userId);
 
             // Generate and send OTP
             $otp = $this->generateOTP($user->phone_number);
@@ -175,7 +175,7 @@ class AuthenticationService extends BaseService
     public function verifyPINResetOTP(string $reference, string $otp, string $userId, string $newPin): array
     {
         try {
-            $user = User::find($userId);
+            $user = ChatUser::find($userId);
 
             // Validate OTP
             if (!$this->validateOTP($user->phone_number, $otp)) {
@@ -194,7 +194,7 @@ class AuthenticationService extends BaseService
             }
 
             // Update PIN
-            $user->transaction_pin = Hash::make($newPin);
+            $user->pin = Hash::make($newPin);
             $user->save();
 
             return [
@@ -237,16 +237,17 @@ class AuthenticationService extends BaseService
     }
 
     /**
-     * Create user account
+     * Create chat user account
      */
-    protected function createUserAccount(array $data): User
+    protected function createChatUserAccount(array $data): ChatUser
     {
-        $user = new User();
-        $user->name = $data['name'] ?? 'User';
+        $user = new ChatUser();
         $user->phone_number = $this->formatPhoneNumber($data['phone_number']);
-        $user->email = $data['email'] ?? null;
         $user->account_number = $data['account_number'];
-        $user->status = 'active';
+        $user->is_verified = true;
+        if (isset($data['pin'])) {
+            $user->pin = Hash::make($data['pin']);
+        }
         $user->save();
 
         return $user;
