@@ -98,8 +98,12 @@ class StateController extends BaseMessageController
         }
 
         // Bill payment states
-        if ($state === 'BILL_PAYMENT_INIT') {
-            return $this->billPaymentController->processBillPayment($message, $sessionData);
+        if (in_array($state, ['BILL_PAYMENT_INIT', 'BILL_PAYMENT'])) {
+            return match($state) {
+                'BILL_PAYMENT_INIT' => $this->billPaymentController->handleBillPayment($message, $sessionData),
+                'BILL_PAYMENT' => $this->billPaymentController->processBillPayment($message, $sessionData),
+                default => $this->menuController->handleUnknownState($message, $sessionData)
+            };
         }
 
         // Account services states

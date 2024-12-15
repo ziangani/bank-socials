@@ -18,7 +18,7 @@ class MenuController extends BaseMessageController
         $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         $menuConfig = $chatUser ? 'main' : 'unregistered';
         $menu = $this->getMenuConfig($menuConfig);
-        
+
         // Add menu options to the message text
         foreach ($menu as $key => $option) {
             $welcomeText .= "{$key}. {$option['text']}\n";
@@ -38,12 +38,12 @@ class MenuController extends BaseMessageController
     public function showUnregisteredMenu(array $message): array
     {
         $welcomeText = "Welcome to our banking service! 👋\n\nPlease select an option:\n\n";
-        
+
         $unregisteredMenu = $this->getMenuConfig('unregistered');
         foreach ($unregisteredMenu as $key => $option) {
             $welcomeText .= "{$key}. {$option['text']}\n";
         }
-        
+
         $welcomeText .= "\nReply with the number of your choice.";
 
         return [
@@ -59,11 +59,11 @@ class MenuController extends BaseMessageController
     {
         $servicesMenu = $this->getMenuConfig('account_services');
         $menuText = "Account Services Menu:\n\n";
-        
+
         foreach ($servicesMenu as $serviceKey => $serviceOption) {
             $menuText .= "{$serviceKey}. {$serviceOption['text']}\n";
         }
-        
+
         $menuText .= "\nReply with the number of your choice.\n";
         $menuText .= "Reply with 00 for main menu or 000 to exit.";
 
@@ -79,7 +79,7 @@ class MenuController extends BaseMessageController
     public function processWelcomeInput(array $message, array $sessionData): array
     {
         $input = $message['content'];
-        
+
         // Check if user is registered
         $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         $menuConfig = $chatUser ? 'main' : 'unregistered';
@@ -144,7 +144,7 @@ class MenuController extends BaseMessageController
     protected function handleUnknownState(array $message, array $sessionData): array
     {
         return [
-            'message' => "Sorry, something went wrong. Please try again.\n\nReply with 00 to return to main menu.",
+            'message' => "Sorry, something went wrong. Please try again UKS.\n\nReply with 00 to return to main menu.",
             'type' => 'text'
         ];
     }

@@ -84,11 +84,35 @@ class WhatsAppSessionManager
                 return false;
             }
 
-            // Safely merge current session data with new data
-            $mergedData = array_merge(
-                $currentSession->data ?? [],
-                $data['data'] ?? []
-            );
+            // Get current session data
+            $currentData = $currentSession->data ?? [];
+
+            // If state is changing, only preserve essential data
+            if (isset($data['state']) && $data['state'] !== $currentSession->state) {
+                // Only keep essential session data when transitioning states
+                $preservedData = array_intersect_key($currentData, array_flip([
+                    'session_id',
+                    'message_id',
+                    'sender',
+                    'business_phone_id',
+                    'contact_name',
+                    'authenticated_at',
+                    'otp_verified',
+                    'authenticated_user'
+                ]));
+                
+                // Use only the new state data plus preserved essential data
+                $mergedData = array_merge(
+                    $preservedData,
+                    $data['data'] ?? []
+                );
+            } else {
+                // If staying in same state, merge with current data
+                $mergedData = array_merge(
+                    $currentData,
+                    $data['data'] ?? []
+                );
+            }
 
             // Create new session state
             WhatsAppSessions::createNewState(
