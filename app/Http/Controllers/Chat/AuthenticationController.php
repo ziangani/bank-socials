@@ -28,7 +28,7 @@ class AuthenticationController extends BaseMessageController
 
         // Send OTP via WhatsApp
         $otpMessage = "Welcome back to Social Banking!\n\nPlease enter the 6-digit OTP sent to your number via SMS.\n\nTest OTP: $otp";
-//        $this->messageAdapter->sendMessage($message['sender'], $otpMessage);
+        $this->messageAdapter->sendMessage($message['sender'], $otpMessage, ['message_id' => $message['message_id']]);
 
         return [
             'message' => $otpMessage,
@@ -130,6 +130,17 @@ class AuthenticationController extends BaseMessageController
                         'message' => "Welcome to Social Banking!\n\nYou are not registered. Please register to continue.",
                         'type' => 'text'
                     ];
+                    
+                    // Send response via message adapter
+                    $this->messageAdapter->sendMessage(
+                        $parsedMessage['sender'],
+                        $response['message'],
+                        ['message_id' => $parsedMessage['message_id']]
+                    );
+                    
+                    // Format and return response
+                    $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
+                    return response()->json($formattedResponse);
                 } else {
                     // For WhatsApp, initiate OTP verification and wrap the response in JsonResponse
                     $otpResponse = $this->initiateOTPVerification($parsedMessage);
@@ -148,19 +159,18 @@ class AuthenticationController extends BaseMessageController
                         'type' => 'text'
                     ];
                 }
+                
+                // Send response via message adapter
+                $this->messageAdapter->sendMessage(
+                    $parsedMessage['sender'],
+                    $response['message'],
+                    ['message_id' => $parsedMessage['message_id']]
+                );
+
+                // Format response for channel
+                $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
+                return response()->json($formattedResponse);
             }
-
-            // Send response via message adapter
-            $options = ['message_id' => $parsedMessage['message_id']];
-            $this->messageAdapter->sendMessage(
-                $parsedMessage['sender'],
-                $response['message'],
-                $options
-            );
-
-            // Format response for channel
-            $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
-            return response()->json($formattedResponse);
 
         } catch (\Exception $e) {
             Log::error('Logout error: ' . $e->getMessage());
