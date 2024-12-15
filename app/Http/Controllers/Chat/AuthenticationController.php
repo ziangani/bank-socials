@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Chat;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use App\Models\ChatUser;
+use App\Adapters\WhatsAppMessageAdapter;
 
 class AuthenticationController extends BaseMessageController
 {
@@ -96,7 +98,7 @@ class AuthenticationController extends BaseMessageController
     }
 
     /**
-     * Handle user logout
+     * Handle user logout (000 command)
      */
     public function handleLogout(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
@@ -106,22 +108,46 @@ class AuthenticationController extends BaseMessageController
                 $this->messageAdapter->endSession($parsedMessage['session_id']);
             }
 
-            // Clear any stored authentication state
+            // Create new session in WELCOME state
             $this->messageAdapter->createSession([
                 'session_id' => $parsedMessage['session_id'],
                 'sender' => $parsedMessage['sender'],
                 'state' => 'WELCOME',
                 'data' => [
                     'authenticated_at' => null,
-                    'otp_verified' => false
+                    'otp_verified' => false,
+                    'last_message' => $parsedMessage['content']
                 ]
             ]);
 
-            $response = [
-                'message' => "You have been logged out successfully.\n\nThank you for using our service. Reply with 'Hi' to start a new session.",
-                'type' => 'text',
-                'end_session' => true
-            ];
+            // Check if user is registered
+            $chatUser = ChatUser::where('phone_number', $parsedMessage['sender'])->first();
+            
+            // Prepare response based on channel and registration status
+            if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                if (!$chatUser) {
+                    $response = [
+                        'message' => "Welcome to Social Banking!\n\nYou are not registered. Please register to continue.",
+                        'type' => 'text'
+                    ];
+                } else {
+                    // For WhatsApp, initiate OTP verification
+                    return $this->initiateOTPVerification($parsedMessage);
+                }
+            } else {
+                // For USSD
+                if (!$chatUser) {
+                    $response = [
+                        'message' => "Welcome to Social Banking\n1. Register\n2. Help",
+                        'type' => 'text'
+                    ];
+                } else {
+                    $response = [
+                        'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
+                        'type' => 'text'
+                    ];
+                }
+            }
 
             // Send response via message adapter
             $options = ['message_id' => $parsedMessage['message_id']];

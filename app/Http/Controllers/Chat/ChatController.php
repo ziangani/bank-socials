@@ -7,6 +7,7 @@ use App\Services\SessionManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\ChatUser;
+use App\Adapters\WhatsAppMessageAdapter;
 
 class ChatController extends BaseMessageController
 {
@@ -14,6 +15,7 @@ class ChatController extends BaseMessageController
     protected AuthenticationController $authenticationController;
     protected MenuController $menuController;
     protected SessionController $sessionController;
+    protected RegistrationController $registrationController;
 
     public function __construct(
         MessageAdapterInterface $messageAdapter,
@@ -21,13 +23,15 @@ class ChatController extends BaseMessageController
         StateController $stateController,
         AuthenticationController $authenticationController,
         MenuController $menuController,
-        SessionController $sessionController
+        SessionController $sessionController,
+        RegistrationController $registrationController
     ) {
         parent::__construct($messageAdapter, $sessionManager);
         $this->stateController = $stateController;
         $this->authenticationController = $authenticationController;
         $this->menuController = $menuController;
         $this->sessionController = $sessionController;
+        $this->registrationController = $registrationController;
     }
 
     /**
@@ -40,7 +44,7 @@ class ChatController extends BaseMessageController
             $parsedMessage = $this->messageAdapter->parseIncomingMessage($request->all());
 
             if (config('app.debug')) {
-                Log::info('Parsed WhatsApp message:', [
+                Log::info('Parsed message:', [
                     'message' => $parsedMessage,
                     'raw_request' => $request->all()
                 ]);
@@ -79,14 +83,14 @@ class ChatController extends BaseMessageController
             }
 
             if (!$sessionData) {
-                $data = $parsedMessage;
-                $data['last_message'] = $parsedMessage['content'];
                 // New session - show welcome message
                 $sessionId = $this->messageAdapter->createSession([
                     'session_id' => $parsedMessage['session_id'],
                     'sender' => $parsedMessage['sender'],
                     'state' => 'WELCOME',
-                    'data' => $data,
+                    'data' => [
+                        'last_message' => $parsedMessage['content']
+                    ],
                 ]);
 
                 $response = $this->handleWelcome($parsedMessage);
@@ -146,12 +150,32 @@ class ChatController extends BaseMessageController
         $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         
         if (!$chatUser) {
-            return $this->menuController->showUnregisteredMenu($message);
+            if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                return [
+                    'message' => "Welcome to Social Banking!\n\nYou are not registered. Please register to continue.",
+                    'type' => 'text'
+                ];
+            } else {
+                // For USSD
+                return [
+                    'message' => "Welcome to Social Banking\n1. Register\n2. Help",
+                    'type' => 'text'
+                ];
+            }
         }
 
-        // Check if user needs OTP verification
+        // User is registered, check if authenticated
         if (!isset($message['session_id']) || !$this->authenticationController->isUserAuthenticated($message['session_id'])) {
-            return $this->authenticationController->initiateOTPVerification($message);
+            if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                // For WhatsApp, initiate OTP verification
+                return $this->authenticationController->initiateOTPVerification($message);
+            } else {
+                // For USSD, request PIN
+                return [
+                    'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
+                    'type' => 'text'
+                ];
+            }
         }
 
         return $this->menuController->showMainMenu($message);
