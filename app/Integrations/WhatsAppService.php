@@ -65,18 +65,22 @@ class WhatsAppService
         return ($response->status() == 200);
     }
 
-    public function sendMessage(string $businessPhoneNumberId, string $from, string $messageId, string $text)
+    public function sendMessage(string $businessPhoneNumberId, string $from, string $text,  string $messageId = null)
     {
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $from,
+            'text' => ['body' => $text],
+        ];
+
+        if ($messageId) {
+            $payload['context'] = ['message_id' => $messageId];
+        }
+
         $response = Http::withToken($this->graphApiToken)
             ->timeout(30)
-            ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", [
-                'messaging_product' => 'whatsapp',
-                'to' => $from,
-                'text' => ['body' => $text],
-                'context' => [
-                    'message_id' => $messageId,
-                ],
-            ]);
+            ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", $payload);
+
         return ($response->status() == 200);
     }
 

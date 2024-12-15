@@ -6,6 +6,8 @@ use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Models\ChatUser;
+use Carbon\Carbon;
 
 class ChatController extends BaseMessageController
 {
@@ -204,6 +206,17 @@ class ChatController extends BaseMessageController
      */
     protected function handleWelcome(array $message): array
     {
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+        
+        if (!$chatUser) {
+            return $this->showUnregisteredMenu($message);
+        }
+
+        // Check if user needs OTP verification
+        if (!isset($sessionData['data']['otp_verified']) || !$sessionData['data']['otp_verified']) {
+            return $this->initiateOTPVerification($message);
+        }
+
         $contactName = $message['contact_name'] ?? 'there';
         $welcomeText = "Hello {$contactName}! 👋\n\nPlease select an option from the menu below:\n";
 
@@ -274,6 +287,18 @@ class ChatController extends BaseMessageController
      */
     protected function processState(string $state, array $message, array $sessionData): array
     {
+        // Check session timeout first
+        if ($this->isSessionExpired($sessionData)) {
+            return $this->handleSessionExpiry($message);
+        }
+
+        // Check if user is registered
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+        
+        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION'])) {
+            return $this->showUnregisteredMenu($message);
+        }
+
         if (config('app.debug')) {
             Log::info('Processing state:', [
                 'state' => $state,
@@ -458,5 +483,63 @@ class ChatController extends BaseMessageController
 
         // Show welcome menu again for invalid input
         return $this->handleWelcome($message);
+    }
+
+    protected function showUnregisteredMenu(array $message): array
+    {
+        $welcomeText = "Welcome to our banking service! 👋\n\nPlease select an option:\n\n";
+        $welcomeText .= "1. Register for WhatsApp Banking\n";
+        $welcomeText .= "2. Help\n\n";
+        $welcomeText .= "Reply with the number of your choice.";
+
+        return [
+            'message' => $welcomeText,
+            'type' => 'text'
+        ];
+    }
+
+    protected function isSessionExpired(array $sessionData): bool
+    {
+        $timeout = config('whatsapp.session_timeout', 600);
+        $lastActivity = Carbon::parse($sessionData['updated_at']);
+        
+        return $lastActivity->addSeconds($timeout)->isPast();
+    }
+
+    protected function handleSessionExpiry(array $message): array
+    {
+        // End the session
+        if ($message['session_id']) {
+            $this->messageAdapter->endSession($message['session_id']);
+        }
+
+        return [
+            'message' => config('whatsapp.session_expiry_message'),
+            'type' => 'text',
+            'end_session' => true
+        ];
+    }
+
+    protected function initiateOTPVerification(array $message): array
+    {
+        // Generate and send OTP
+        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        
+        // Store OTP in session
+        $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'OTP_VERIFICATION',
+            'data' => [
+                'otp' => $otp,
+                'otp_generated_at' => now()
+            ]
+        ]);
+
+        // Send OTP via SMS (implement your SMS service here)
+        // SMSService::send($message['sender'], "Your OTP for WhatsApp Banking is: {$otp}");
+
+        return [
+            'message' => "Please enter the 6-digit OTP sent to your registered mobile number to continue.",
+            'type' => 'text'
+        ];
     }
 }

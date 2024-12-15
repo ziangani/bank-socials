@@ -71,8 +71,8 @@ class WhatsAppMessageSender
             return $this->whatsAppService->sendMessage(
                 $businessPhoneId,
                 $recipient,
+                $message,
                 $messageId,
-                $message
             );
         } catch (\Exception $e) {
             Log::error('WhatsApp message sending error: ' . $e->getMessage());
