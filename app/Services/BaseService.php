@@ -6,6 +6,7 @@ use App\Common\GeneralStatus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class BaseService
 {
@@ -22,7 +23,7 @@ class BaseService
     protected function generateOTP(string $identifier): string
     {
         try {
-            $otpLength = config('social-banking.security.otp_length', self::OTP_LENGTH);
+            $otpLength = (int) config('social-banking.security.otp_length', self::OTP_LENGTH);
             $otp = '';
             
             // Generate numeric OTP
@@ -31,11 +32,11 @@ class BaseService
             }
 
             // Store OTP with expiry
-            $expiryMinutes = config('social-banking.security.otp_expiry', self::OTP_EXPIRY_MINUTES);
+            $expiryMinutes = (int) config('social-banking.security.otp_expiry', self::OTP_EXPIRY_MINUTES);
             Cache::put(
                 $this->getOTPKey($identifier),
                 $otp,
-                now()->addMinutes($expiryMinutes)
+                Carbon::now()->addMinutes($expiryMinutes)
             );
 
             return $otp;
@@ -79,7 +80,7 @@ class BaseService
         try {
             // Check PIN attempts
             $attempts = Cache::get($this->getPINAttemptsKey($identifier), 0);
-            $maxAttempts = config('social-banking.security.max_pin_attempts', self::MAX_PIN_ATTEMPTS);
+            $maxAttempts = (int) config('social-banking.security.max_pin_attempts', self::MAX_PIN_ATTEMPTS);
 
             if ($attempts >= $maxAttempts) {
                 return [
@@ -93,10 +94,11 @@ class BaseService
 
             if (!$isValid) {
                 // Increment attempts
+                $timeoutMinutes = (int) config('social-banking.security.pin_timeout', self::PIN_TIMEOUT_MINUTES);
                 Cache::put(
                     $this->getPINAttemptsKey($identifier),
                     $attempts + 1,
-                    now()->addMinutes(config('social-banking.security.pin_timeout', self::PIN_TIMEOUT_MINUTES))
+                    Carbon::now()->addMinutes($timeoutMinutes)
                 );
 
                 return [
@@ -232,8 +234,8 @@ class BaseService
      */
     protected function validateAmount(float $amount): array
     {
-        $minAmount = config('social-banking.transactions.min_amount', 10);
-        $maxAmount = config('social-banking.transactions.max_amount', 150000);
+        $minAmount = (float) config('social-banking.transactions.min_amount', 10);
+        $maxAmount = (float) config('social-banking.transactions.max_amount', 150000);
 
         if ($amount < $minAmount) {
             return [
