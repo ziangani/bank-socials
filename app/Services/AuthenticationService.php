@@ -54,7 +54,8 @@ class AuthenticationService extends BaseService
 
             return $this->returnSuccess('Registration successful', [
                 'user_id' => $user->id,
-                'requires_pin_setup' => true
+                // Only require PIN setup for non-WhatsApp registrations
+                'requires_pin_setup' => isset($data['pin'])
             ]);
 
         } catch (\Exception $e) {

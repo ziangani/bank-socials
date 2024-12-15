@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
+use App\Adapters\WhatsAppMessageAdapter;
 
 class RegistrationController extends BaseMessageController
 {
@@ -28,6 +29,11 @@ class RegistrationController extends BaseMessageController
     ) {
         parent::__construct($messageAdapter, $sessionManager);
         $this->authService = $authService;
+    }
+
+    protected function isWhatsAppChannel(): bool
+    {
+        return $this->messageAdapter instanceof WhatsAppMessageAdapter;
     }
 
     public function handleRegistration(array $message, array $sessionData): array
@@ -107,6 +113,37 @@ class RegistrationController extends BaseMessageController
             );
         }
 
+        // For WhatsApp registrations, skip PIN setup and go straight to OTP verification
+        if ($this->isWhatsAppChannel()) {
+            // Generate OTP through AuthenticationService
+            $otpResult = $this->authService->registerWithAccount([
+                'account_number' => $accountNumber,
+                'phone_number' => $message['sender']
+            ]);
+
+            if ($otpResult['status'] !== 'success') {
+                return $this->formatTextResponse(
+                    "Failed to send verification code. Please try again later or contact support."
+                );
+            }
+
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'ACCOUNT_REGISTRATION',
+                'data' => [
+                    ...$sessionData['data'],
+                    'account_number' => $accountNumber,
+                    'registration_reference' => $otpResult['data']['reference'],
+                    'step' => self::STATES['OTP_VERIFICATION']
+                ]
+            ]);
+
+            return $this->formatTextResponse(
+                "A verification code has been sent to your WhatsApp number.\n" .
+                "Please enter the code to complete registration:"
+            );
+        }
+
+        // For USSD registrations, continue with PIN setup
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
             'data' => [
@@ -124,6 +161,11 @@ class RegistrationController extends BaseMessageController
 
     protected function processPinSetup(array $message, array $sessionData): array
     {
+        // Skip PIN setup for WhatsApp registrations
+        if ($this->isWhatsAppChannel()) {
+            return $this->processOtpVerification($message, $sessionData);
+        }
+
         if (config('app.debug')) {
             Log::info('Processing PIN setup');
         }
@@ -152,6 +194,11 @@ class RegistrationController extends BaseMessageController
 
     protected function processConfirmPin(array $message, array $sessionData): array
     {
+        // Skip PIN confirmation for WhatsApp registrations
+        if ($this->isWhatsAppChannel()) {
+            return $this->processOtpVerification($message, $sessionData);
+        }
+
         if (config('app.debug')) {
             Log::info('Processing PIN confirmation');
         }
@@ -219,14 +266,20 @@ class RegistrationController extends BaseMessageController
             );
         }
 
-        // Create ChatUser record
-        ChatUser::create([
+        // Create ChatUser record - PIN is only set for USSD registrations
+        $userData = [
             'phone_number' => $message['sender'],
             'account_number' => $sessionData['data']['account_number'],
-            'pin' => Hash::make($sessionData['data']['pin']),
             'is_verified' => true,
             'last_otp_sent_at' => now()
-        ]);
+        ];
+
+        // Only include PIN for USSD registrations
+        if (!$this->isWhatsAppChannel() && isset($sessionData['data']['pin'])) {
+            $userData['pin'] = Hash::make($sessionData['data']['pin']);
+        }
+
+        ChatUser::create($userData);
 
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [

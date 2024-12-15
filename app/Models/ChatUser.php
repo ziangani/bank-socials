@@ -9,6 +9,7 @@ class ChatUser extends Model
     protected $fillable = [
         'phone_number',
         'account_number',
+        'pin',
         'is_verified',
         'last_otp_sent_at'
     ];
@@ -17,4 +18,4 @@ class ChatUser extends Model
         'is_verified' => 'boolean',
         'last_otp_sent_at' => 'datetime'
     ];
-} 
+}
