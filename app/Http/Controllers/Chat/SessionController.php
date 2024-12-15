@@ -54,12 +54,25 @@ class SessionController extends BaseMessageController
     public function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
         try {
-            // End current session and create a new clean session
+            // Get current session data to preserve authentication state
+            $currentSession = $this->messageAdapter->getSessionData($parsedMessage['session_id']);
+            $authData = [];
+            
+            // Preserve authentication data if it exists
+            if ($currentSession && isset($currentSession['data'])) {
+                if (isset($currentSession['data']['authenticated_at'])) {
+                    $authData['authenticated_at'] = $currentSession['data']['authenticated_at'];
+                }
+                if (isset($currentSession['data']['otp_verified'])) {
+                    $authData['otp_verified'] = $currentSession['data']['otp_verified'];
+                }
+            }
+
+            // End current session
             if ($parsedMessage['session_id']) {
-                // First end the current session
                 $this->messageAdapter->endSession($parsedMessage['session_id']);
                 
-                // Create a new clean session
+                // Create a new session while preserving authentication state
                 $this->messageAdapter->createSession([
                     'session_id' => $parsedMessage['session_id'],
                     'sender' => $parsedMessage['sender'],
@@ -68,21 +81,15 @@ class SessionController extends BaseMessageController
                         'session_id' => $parsedMessage['session_id'],
                         'message_id' => $parsedMessage['message_id'],
                         'sender' => $parsedMessage['sender'],
-                        'last_message' => '00'
+                        'last_message' => '00',
+                        ...$authData // Include preserved authentication data
                     ]
                 ]);
             }
 
             // Get welcome message response
             $response = $this->menuController->showMainMenu($parsedMessage);
-
-            // Send response via message adapter
-            $options = ['message_id' => $parsedMessage['message_id']];
-            $this->messageAdapter->sendMessage(
-                $parsedMessage['sender'],
-                $response['message'],
-                $options
-            );
+            $response['already_sent'] = true; // Prevent double-sending
 
             // Format response for channel
             $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);

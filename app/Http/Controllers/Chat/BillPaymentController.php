@@ -55,11 +55,11 @@ class BillPaymentController extends BaseMessageController
             ]);
         }
 
-        // Initialize bill payment flow with bill type selection while preserving session data
+        // Initialize bill payment flow with bill type selection while preserving authentication data
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'BILL_PAYMENT_INIT', // Ensure state is set
+            'state' => 'BILL_PAYMENT',
             'data' => [
-                ...$sessionData['data'] ?? [], // Preserve existing session data
+                ...$sessionData['data'] ?? [], // Preserve existing session data including authentication
                 'step' => self::STATES['BILL_TYPE_SELECTION']
             ]
         ]);
@@ -129,11 +129,11 @@ class BillPaymentController extends BaseMessageController
 
         $billType = self::BILL_TYPES[$selection];
         
-        // Update session with bill type while preserving session data
+        // Update session with bill type while preserving authentication data
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
+            'state' => 'BILL_PAYMENT',
             'data' => [
-                ...$sessionData['data'],
+                ...$sessionData['data'], // Preserve all session data including authentication
                 'bill_type' => $billType,
                 'step' => self::STATES['ACCOUNT_INPUT']
             ]
@@ -175,20 +175,24 @@ class BillPaymentController extends BaseMessageController
             );
         }
 
-        // Update session with account number
-        $sessionData['data']['account_number'] = $accountNumber;
-        
+        // Update session with account number while preserving authentication data
         if ($billType['fixed_amount']) {
             // Simulate fetching fixed amount (replace with actual API call)
             $amount = $this->getFixedAmount($billType['code']);
-            return $this->prepareConfirmation($message, $sessionData, $amount);
+            return $this->prepareConfirmation($message, [
+                ...$sessionData,
+                'data' => [
+                    ...$sessionData['data'],
+                    'account_number' => $accountNumber
+                ]
+            ], $amount);
         }
 
         // For variable amount bills, proceed to amount input
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
+            'state' => 'BILL_PAYMENT',
             'data' => [
-                ...$sessionData['data'],
+                ...$sessionData['data'], // Preserve all session data including authentication
                 'account_number' => $accountNumber,
                 'step' => self::STATES['AMOUNT_INPUT']
             ]
@@ -241,11 +245,11 @@ class BillPaymentController extends BaseMessageController
         $accountNumber = $sessionData['data']['account_number'];
         $currency = config('social-banking.currency', 'MWK');
 
-        // Update session with amount and move to confirmation
+        // Update session with amount and move to confirmation while preserving authentication data
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'BILL_PAYMENT_INIT', // Keep the state consistent
+            'state' => 'BILL_PAYMENT',
             'data' => [
-                ...$sessionData['data'],
+                ...$sessionData['data'], // Preserve all session data including authentication
                 'amount' => $amount,
                 'step' => self::STATES['CONFIRM_PAYMENT']
             ]
@@ -282,8 +286,13 @@ class BillPaymentController extends BaseMessageController
         $response = $message['content'];
 
         if ($response === '2' || strtolower($response) === 'cancel') {
+            // Reset to welcome state while preserving authentication data
             $this->messageAdapter->updateSession($message['session_id'], [
-                'state' => 'WELCOME'
+                'state' => 'WELCOME',
+                'data' => [
+                    'authenticated_at' => $sessionData['data']['authenticated_at'] ?? null,
+                    'otp_verified' => $sessionData['data']['otp_verified'] ?? false
+                ]
             ]);
 
             if (config('app.debug')) {
@@ -315,9 +324,13 @@ class BillPaymentController extends BaseMessageController
             $paymentData['amount']
         );
 
-        // Reset session to welcome state
+        // Reset to welcome state while preserving authentication data
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'WELCOME'
+            'state' => 'WELCOME',
+            'data' => [
+                'authenticated_at' => $sessionData['data']['authenticated_at'] ?? null,
+                'otp_verified' => $sessionData['data']['otp_verified'] ?? false
+            ]
         ]);
 
         if (config('app.debug')) {
