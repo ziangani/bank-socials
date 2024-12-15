@@ -188,6 +188,9 @@ class BillPaymentController extends BaseMessageController
                 );
             }
 
+            // Extract account name from validation response
+            $accountName = $validation['account_name'] ?? 'Unknown';
+
             if ($billType['fixed_amount']) {
                 // For fixed amount bills, get amount from service
                 $amount = $this->getFixedAmount($billType['code']);
@@ -196,7 +199,7 @@ class BillPaymentController extends BaseMessageController
                     'data' => [
                         ...$sessionData['data'],
                         'account_number' => $accountNumber,
-                        'account_name' => $validation['data']['account_name']
+                        'account_name' => $accountName
                     ]
                 ], $amount);
             }
@@ -207,7 +210,7 @@ class BillPaymentController extends BaseMessageController
                 'data' => [
                     ...$sessionData['data'],
                     'account_number' => $accountNumber,
-                    'account_name' => $validation['data']['account_name'],
+                    'account_name' => $accountName,
                     'step' => self::STATES['AMOUNT_INPUT']
                 ]
             ]);
@@ -312,8 +315,8 @@ class BillPaymentController extends BaseMessageController
                 'bill_type' => $sessionData['data']['bill_type']['code'],
                 'bill_account' => $sessionData['data']['account_number'],
                 'amount' => $sessionData['data']['amount'],
-                'payer' => $sessionData['user']['account_number'],
-                'pin' => $sessionData['user']['pin']
+                'payer' => $sessionData['authenticated_user']['App\\Models\\ChatUser']['account_number'],
+                'pin' => $sessionData['authenticated_user']['App\\Models\\ChatUser']['pin']
             ]);
 
             if ($paymentResult['status'] !== GeneralStatus::SUCCESS) {
@@ -328,13 +331,13 @@ class BillPaymentController extends BaseMessageController
                 'state' => 'WELCOME'
             ]);
 
-            Log::info('Bill payment completed successfully - Reference: ' . $paymentResult['data']['reference']);
+            Log::info('Bill payment completed successfully - Reference: ' . $paymentResult['reference']);
 
             $successMsg = $this->formatSuccessMessage(
                 $sessionData['data']['bill_type']['name'],
                 $sessionData['data']['account_number'],
-                $paymentResult['data']['amount'],
-                $paymentResult['data']['reference']
+                $paymentResult['amount'],
+                $paymentResult['reference']
             );
 
             return $this->formatTextResponse($successMsg . "\n\nReply with 00 to return to main menu.");
