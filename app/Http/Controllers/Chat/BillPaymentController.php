@@ -15,7 +15,7 @@ class BillPaymentController extends BaseMessageController
         'BILL_TYPE_SELECTION' => 'BILL_TYPE_SELECTION',
         'ACCOUNT_INPUT' => 'ACCOUNT_INPUT',
         'AMOUNT_INPUT' => 'AMOUNT_INPUT',
-        'CONFIRM_PAYMENT' => 'CONFIRM_PAYMENT',
+        'CONFIRM_PAYMENT' => 'CONFIRM_PAYMENT'
     ];
 
     // Bill types and their validation patterns
@@ -310,13 +310,15 @@ class BillPaymentController extends BaseMessageController
                 );
             }
 
+            // Get authenticated user from session data
+            $user = $sessionData['authenticated_user'];
+
             // Process payment using service
             $paymentResult = $this->billPaymentService->processBillPayment([
                 'bill_type' => $sessionData['data']['bill_type']['code'],
                 'bill_account' => $sessionData['data']['account_number'],
                 'amount' => $sessionData['data']['amount'],
-                'payer' => $sessionData['authenticated_user']['App\\Models\\ChatUser']['account_number'],
-                'pin' => $sessionData['authenticated_user']['App\\Models\\ChatUser']['pin']
+                'payer' => $user['account_number']
             ]);
 
             if ($paymentResult['status'] !== GeneralStatus::SUCCESS) {

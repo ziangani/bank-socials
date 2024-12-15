@@ -57,12 +57,6 @@ class BillPaymentService extends BaseService
                 return $billValidation;
             }
 
-            // Validate PIN
-            $pinValidation = $this->validatePIN($data['payer'], $data['pin']);
-            if ($pinValidation['status'] !== GeneralStatus::SUCCESS) {
-                return $pinValidation;
-            }
-
             // Calculate fees
             $fees = $this->calculateBillPaymentFees($data['amount']);
             $totalAmount = $data['amount'] + $fees['total'];
