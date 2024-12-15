@@ -123,6 +123,75 @@ class WhatsAppService
         return '';
     }
 
+    /**
+     * Send a dynamic rich menu to a WhatsApp user.
+     *
+     * @param string $businessPhoneNumberId The business phone number ID.
+     * @param string $from The recipient's phone number.
+     * @param string $messageId The ID of the message to reply to.
+     * @param string $body The body text of the message.
+     * @param string $footer The footer text of the message.
+     * @param array $sections The menu sections and options.
+     * @return bool True if the message was sent successfully, otherwise false.
+     * @throws \Exception If the message fails to send.
+     */
+    public function sendDynamicRichMenu(
+        string $businessPhoneNumberId,
+        string $from,
+        string $messageId,
+        string $body,
+        string $footer,
+        array $sections
+    ) {
+        // Truncate fields to meet Meta's API length requirements
+        $body = substr($body, 0, 1024); // Assuming max length for body is 1024 characters
+        $footer = substr($footer, 0, 60); // Assuming max length for footer is 60 characters
+
+        foreach ($sections as &$section) {
+            $section['title'] = substr($section['title'], 0, 24); // Assuming max length for section title is 24 characters
+            foreach ($section['rows'] as &$row) {
+                $row['title'] = substr($row['title'], 0, 20); // Assuming max length for row title is 20 characters
+                $row['description'] = substr($row['description'], 0, 72); // Assuming max length for row description is 72 characters
+            }
+        }
+
+        $res = Http::withToken($this->graphApiToken)
+            ->timeout(30)
+            ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", [
+                'messaging_product' => 'whatsapp',
+                'to' => $from,
+                'recipient_type' => 'individual',
+                'type' => 'interactive',
+                'interactive' => [
+                    'type' => 'list',
+                    'header' => [
+                        'type' => 'text',
+                        'text' => "Welcome to " . config('app.friendly_name')
+                    ],
+                    'body' => [
+                        'text' => $body
+                    ],
+                    'footer' => [
+                        'text' => $footer
+                    ],
+                    'action' => [
+                        'button' => "Select Option",
+                        'sections' => $sections
+                    ]
+                ],
+                'context' => [
+                    'message_id' => $messageId,
+                ],
+            ]);
+
+        if ($res->status() != 200) {
+            Log::error('Failed to send dynamic rich menu', ['response' => $res->json()]);
+            throw new \Exception('Failed to send dynamic rich menu: ' . $res->body());
+        }
+
+        return true;
+    }
+
     public function sendWelcomeMenu(string $businessPhoneNumberId, string $from, string $messageId, string $body)
     {
         $sections = [

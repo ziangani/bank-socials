@@ -14,10 +14,13 @@ class MenuController extends BaseMessageController
         $contactName = $message['contact_name'] ?? 'there';
         $welcomeText = "Hello {$contactName}! 👋\n\nPlease select an option from the menu below:\n";
 
-        $mainMenu = $this->getMenuConfig('main');
+        // Get the appropriate menu based on user registration status
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+        $menuConfig = $chatUser ? 'main' : 'unregistered';
+        $menu = $this->getMenuConfig($menuConfig);
         
         // Add menu options to the message text
-        foreach ($mainMenu as $key => $option) {
+        foreach ($menu as $key => $option) {
             $welcomeText .= "{$key}. {$option['text']}\n";
         }
 
