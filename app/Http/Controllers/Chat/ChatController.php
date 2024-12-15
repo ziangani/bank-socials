@@ -408,6 +408,7 @@ class ChatController extends BaseMessageController
 
         foreach ($mainMenu as $key => $option) {
             if ($input == $key || strtolower($input) == strtolower($option['text'])) {
+                // Update session with selected option
                 $this->messageAdapter->updateSession($message['session_id'], [
                     'state' => $option['state'],
                     'data' => [
@@ -424,11 +425,28 @@ class ChatController extends BaseMessageController
                     ]);
                 }
 
+                // For account services, we'll use text menu instead of interactive buttons
+                if ($option['state'] === 'SERVICES_INIT') {
+                    $servicesMenu = $this->getMenuConfig('services');
+                    $menuText = "Account Services Menu:\n\n";
+                    
+                    foreach ($servicesMenu as $serviceKey => $serviceOption) {
+                        $menuText .= "{$serviceKey}. {$serviceOption['text']}\n";
+                    }
+                    
+                    $menuText .= "\nReply with the number of your choice.\n";
+                    $menuText .= "Reply with 00 for main menu or 000 to exit.";
+
+                    return [
+                        'message' => $menuText,
+                        'type' => 'text'
+                    ];
+                }
+
                 return match ($option['state']) {
                     'REGISTRATION_INIT' => $this->registrationController->handleRegistration($message, $sessionData),
                     'TRANSFER_INIT' => $this->transferController->handleTransfer($message, $sessionData),
                     'BILL_PAYMENT_INIT' => $this->billPaymentController->handleBillPayment($message, $sessionData),
-                    'SERVICES_INIT' => $this->accountServicesController->handleAccountServices($message, $sessionData),
                     default => $this->handleUnknownState($message, $sessionData)
                 };
             }
