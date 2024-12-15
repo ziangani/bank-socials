@@ -57,12 +57,13 @@ class RegistrationController extends BaseMessageController
         }
 
         // Initialize account registration
+        $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+            'step' => self::STATES['ACCOUNT_NUMBER_INPUT']
+        ]);
+
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
-            'data' => [
-                ...($sessionData['data'] ?? []),
-                'step' => self::STATES['ACCOUNT_NUMBER_INPUT']
-            ]
+            'data' => $sessionDataMerged
         ]);
 
         return $this->formatTextResponse("Please enter your account number (10 digits):");
@@ -129,14 +130,15 @@ class RegistrationController extends BaseMessageController
                 );
             }
 
+            $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+                'account_number' => $accountNumber,
+                'registration_reference' => $otpResult['data']['reference'],
+                'step' => self::STATES['OTP_VERIFICATION']
+            ]);
+
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'ACCOUNT_REGISTRATION',
-                'data' => [
-                    ...($sessionData['data'] ?? []),
-                    'account_number' => $accountNumber,
-                    'registration_reference' => $otpResult['data']['reference'],
-                    'step' => self::STATES['OTP_VERIFICATION']
-                ]
+                'data' => $sessionDataMerged
             ]);
 
             return $this->formatTextResponse(
@@ -146,13 +148,14 @@ class RegistrationController extends BaseMessageController
         }
 
         // For USSD registrations, continue with PIN setup
+        $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+            'account_number' => $accountNumber,
+            'step' => self::STATES['PIN_SETUP']
+        ]);
+
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
-            'data' => [
-                ...($sessionData['data'] ?? []),
-                'account_number' => $accountNumber,
-                'step' => self::STATES['PIN_SETUP']
-            ]
+            'data' => $sessionDataMerged
         ]);
 
         return $this->formatTextResponse(
@@ -182,13 +185,14 @@ class RegistrationController extends BaseMessageController
             return $this->formatTextResponse("Invalid PIN. Please enter exactly 4 digits for your PIN:");
         }
 
+        $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+            'pin' => $pin,
+            'step' => self::STATES['CONFIRM_PIN']
+        ]);
+
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => $sessionData['state'],
-            'data' => [
-                ...($sessionData['data'] ?? []),
-                'pin' => $pin,
-                'step' => self::STATES['CONFIRM_PIN']
-            ]
+            'data' => $sessionDataMerged
         ]);
 
         return $this->formatTextResponse("Please confirm your PIN (enter the same 4 digits again):");
@@ -228,13 +232,14 @@ class RegistrationController extends BaseMessageController
             );
         }
 
+        $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+            'registration_reference' => $otpResult['data']['reference'],
+            'step' => self::STATES['OTP_VERIFICATION']
+        ]);
+
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => $sessionData['state'],
-            'data' => [
-                ...($sessionData['data'] ?? []),
-                'registration_reference' => $otpResult['data']['reference'],
-                'step' => self::STATES['OTP_VERIFICATION']
-            ]
+            'data' => $sessionDataMerged
         ]);
 
         return $this->formatTextResponse(
@@ -264,11 +269,11 @@ class RegistrationController extends BaseMessageController
 
         if ($verificationResult['status'] !== GeneralStatus::SUCCESS) {
             return $this->formatTextResponse(
-                "Invalid verification code. Please try again({$verificationResult['status']}) :"
+                "Invalid verification code. Please try again:"
             );
         }
 
-        // Create ChatUser record - PIN is only set for USSD registrations
+        // Prepare user data
         $userData = [
             'phone_number' => $message['sender'],
             'account_number' => $sessionData['data']['account_number'],
@@ -281,22 +286,33 @@ class RegistrationController extends BaseMessageController
             $userData['pin'] = Hash::make($sessionData['data']['pin']);
         }
 
-        ChatUser::create($userData);
+        try {
+            // Use updateOrCreate to handle both new and existing users
+            ChatUser::updateOrCreate(
+                ['phone_number' => $message['sender']], // The unique identifier
+                $userData // The values to update or create with
+            );
 
-        // Reset session to welcome state
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'WELCOME'
-        ]);
+            // Reset session to welcome state
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'WELCOME'
+            ]);
 
-        if (config('app.debug')) {
-            Log::info('Registration successful, returning to welcome state');
+            if (config('app.debug')) {
+                Log::info('Registration successful, returning to welcome state');
+            }
+
+            return $this->formatTextResponse(
+                "Registration successful! ✅\n\n" .
+                "Your account (*" . substr($sessionData['data']['account_number'], -4) . ") has been registered.\n\n" .
+                "Reply with 00 to return to main menu."
+            );
+        } catch (\Exception $e) {
+            Log::error('Failed to save chat user:', ['error' => $e->getMessage()]);
+            return $this->formatTextResponse(
+                "Registration failed. Please try again later or contact support."
+            );
         }
-
-        return $this->formatTextResponse(
-            "Registration successful! ✅\n\n" .
-            "Your account (*" . substr($sessionData['data']['account_number'], -4) . ") has been registered.\n\n" .
-            "Reply with 00 to return to main menu."
-        );
     }
 
     protected function validatePin(string $pin): bool
