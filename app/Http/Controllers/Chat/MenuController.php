@@ -37,13 +37,17 @@ class MenuController extends BaseMessageController
      */
     public function showUnregisteredMenu(array $message): array
     {
-        $welcomeText = "Welcome to our banking service! 👋\n\nPlease select an option:\n\n";
+        $welcomeText = "Welcome to Social Banking! 🏦\n\n";
+        $welcomeText .= "To get started with our banking services, you'll need to register first. Registration is quick and secure!\n\n";
+        $welcomeText .= "Please select an option:\n\n";
 
         $unregisteredMenu = $this->getMenuConfig('unregistered');
         foreach ($unregisteredMenu as $key => $option) {
             $welcomeText .= "{$key}. {$option['text']}\n";
         }
 
+        $welcomeText .= "\n📱 Select 1 to register - you'll need your account number ready\n";
+        $welcomeText .= "❓ Select 2 for help and guidance\n";
         $welcomeText .= "\nReply with the number of your choice.";
 
         return [
@@ -116,20 +120,24 @@ class MenuController extends BaseMessageController
      */
     public function handleHelp(array $message, array $sessionData): array
     {
-        $helpText = "Welcome to our Banking Service Help! 🤝\n\n";
-        $helpText .= "Here's how to use our service:\n\n";
-        $helpText .= "1. Registration:\n";
-        $helpText .= "   - Select 'Register' from the menu\n";
-        $helpText .= "   - Enter your 10-digit account number\n";
-        $helpText .= "   - Set up a 4-digit PIN\n";
-        $helpText .= "   - Verify with OTP\n\n";
-        $helpText .= "2. Login:\n";
-        $helpText .= "   - Verify with OTP each session\n";
-        $helpText .= "   - For USSD, use your PIN\n\n";
-        $helpText .= "3. Navigation:\n";
-        $helpText .= "   - Use menu numbers to select options\n";
-        $helpText .= "   - Type 00 to return to main menu\n";
-        $helpText .= "   - Type 000 to exit\n\n";
+        $helpText = "Welcome to Social Banking Help! 🤝\n\n";
+        $helpText .= "Getting Started:\n\n";
+        $helpText .= "1. Registration Process:\n";
+        $helpText .= "   • Have your account number ready\n";
+        $helpText .= "   • Choose 'Register' from the menu\n";
+        $helpText .= "   • Enter your account number when prompted\n";
+        $helpText .= "   • Create a secure 4-digit PIN\n";
+        $helpText .= "   • Verify your identity with OTP\n\n";
+        $helpText .= "2. After Registration:\n";
+        $helpText .= "   • Access money transfers\n";
+        $helpText .= "   • Pay bills easily\n";
+        $helpText .= "   • Check your balance\n";
+        $helpText .= "   • View account statements\n\n";
+        $helpText .= "3. Navigation Tips:\n";
+        $helpText .= "   • Use menu numbers to select options\n";
+        $helpText .= "   • Type 00 to return to main menu\n";
+        $helpText .= "   • Type 000 to exit\n\n";
+        $helpText .= "Need more help? Contact our support at support@socialbanking.com\n\n";
         $helpText .= "Reply with 00 to return to the main menu.";
 
         return [
