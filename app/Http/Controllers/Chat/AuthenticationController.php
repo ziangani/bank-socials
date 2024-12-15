@@ -28,7 +28,7 @@ class AuthenticationController extends BaseMessageController
 
         // Send OTP via WhatsApp
         $otpMessage = "Welcome back to Social Banking!\n\nPlease enter the 6-digit OTP sent to your number via SMS.\n\n";
-        $this->messageAdapter->sendMessage($message['sender'], $otpMessage);
+//        $this->messageAdapter->sendMessage($message['sender'], $otpMessage);
 
         return [
             'message' => $otpMessage,
