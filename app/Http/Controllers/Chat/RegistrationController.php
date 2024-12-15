@@ -6,6 +6,8 @@ use App\Services\AuthenticationService;
 use App\Models\ChatUser;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
+use App\Interfaces\MessageAdapterInterface;
+use App\Services\SessionManager;
 
 class RegistrationController extends BaseMessageController
 {
@@ -19,8 +21,12 @@ class RegistrationController extends BaseMessageController
 
     protected AuthenticationService $authService;
 
-    public function __construct(AuthenticationService $authService)
-    {
+    public function __construct(
+        MessageAdapterInterface $messageAdapter,
+        SessionManager $sessionManager,
+        AuthenticationService $authService
+    ) {
+        parent::__construct($messageAdapter, $sessionManager);
         $this->authService = $authService;
     }
 
