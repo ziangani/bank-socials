@@ -88,7 +88,7 @@ class StateController extends BaseMessageController
         }
 
         // Check authentication for protected states
-        if (!$this->authenticationController->isUserAuthenticated($message['session_id'])) {
+        if (!$this->authenticationController->isUserAuthenticated($message['sender'])) {
             return $this->authenticationController->initiateOTPVerification($message);
         }
 
