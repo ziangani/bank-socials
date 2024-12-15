@@ -25,10 +25,16 @@ class AuthenticationService extends BaseService
             $otp = $this->generateOTP($data['phone_number']);
             $this->sendOTP($data['phone_number'], $otp);
 
-            return $this->returnSuccess('OTP sent successfully', [
-                'requires_otp' => true,
-                'reference' => $this->generateReference('REG')
-            ]);
+            // Return success with reference
+            $reference = $this->generateReference('REG');
+            return [
+                'status' => GeneralStatus::SUCCESS,
+                'message' => 'OTP sent successfully',
+                'data' => [
+                    'requires_otp' => true,
+                    'reference' => $reference
+                ]
+            ];
 
         } catch (\Exception $e) {
             return $this->logAndReturnError('Account registration failed', $e);
@@ -52,11 +58,14 @@ class AuthenticationService extends BaseService
             // Create user account
             $user = $this->createUserAccount($data);
 
-            return $this->returnSuccess('Registration successful', [
-                'user_id' => $user->id,
-                // Only require PIN setup for non-WhatsApp registrations
-                'requires_pin_setup' => isset($data['pin'])
-            ]);
+            return [
+                'status' => GeneralStatus::SUCCESS,
+                'message' => 'Registration successful',
+                'data' => [
+                    'user_id' => $user->id,
+                    'requires_pin_setup' => isset($data['pin'])
+                ]
+            ];
 
         } catch (\Exception $e) {
             return $this->logAndReturnError('Registration verification failed', $e);
@@ -82,7 +91,10 @@ class AuthenticationService extends BaseService
             $user->transaction_pin = Hash::make($pin);
             $user->save();
 
-            return $this->returnSuccess('PIN setup successful');
+            return [
+                'status' => GeneralStatus::SUCCESS,
+                'message' => 'PIN setup successful'
+            ];
 
         } catch (\Exception $e) {
             return $this->logAndReturnError('PIN setup failed', $e);
@@ -117,7 +129,10 @@ class AuthenticationService extends BaseService
             $user->transaction_pin = Hash::make($newPin);
             $user->save();
 
-            return $this->returnSuccess('PIN changed successfully');
+            return [
+                'status' => GeneralStatus::SUCCESS,
+                'message' => 'PIN changed successfully'
+            ];
 
         } catch (\Exception $e) {
             return $this->logAndReturnError('PIN change failed', $e);
@@ -136,10 +151,16 @@ class AuthenticationService extends BaseService
             $otp = $this->generateOTP($user->phone_number);
             $this->sendOTP($user->phone_number, $otp);
 
-            return $this->returnSuccess('OTP sent successfully', [
-                'requires_otp' => true,
-                'reference' => $this->generateReference('PIN')
-            ]);
+            // Generate reference
+            $reference = $this->generateReference('PIN');
+            return [
+                'status' => GeneralStatus::SUCCESS,
+                'message' => 'OTP sent successfully',
+                'data' => [
+                    'requires_otp' => true,
+                    'reference' => $reference
+                ]
+            ];
 
         } catch (\Exception $e) {
             return $this->logAndReturnError('PIN reset initiation failed', $e);
@@ -174,7 +195,10 @@ class AuthenticationService extends BaseService
             $user->transaction_pin = Hash::make($newPin);
             $user->save();
 
-            return $this->returnSuccess('PIN reset successful');
+            return [
+                'status' => GeneralStatus::SUCCESS,
+                'message' => 'PIN reset successful'
+            ];
 
         } catch (\Exception $e) {
             return $this->logAndReturnError('PIN reset verification failed', $e);
@@ -241,40 +265,5 @@ class AuthenticationService extends BaseService
     protected function validatePINFormat(string $pin): bool
     {
         return preg_match('/^[0-9]{4}$/', $pin);
-    }
-
-    /**
-     * Generate OTP
-     */
-    protected function generateOTP(string $phoneNumber): string
-    {
-        return str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * Validate OTP
-     */
-    protected function validateOTP(string $phoneNumber, string $otp): bool
-    {
-        // TODO: Implement actual OTP validation
-        return true;
-    }
-
-    /**
-     * Format phone number
-     */
-    protected function formatPhoneNumber(string $phoneNumber): string
-    {
-        // Remove any non-digit characters
-        $cleaned = preg_replace('/[^0-9]/', '', $phoneNumber);
-        
-        // Ensure it starts with country code
-        if (strlen($cleaned) === 9) {
-            return '254' . $cleaned;
-        }
-        if (strlen($cleaned) === 10 && $cleaned[0] === '0') {
-            return '254' . substr($cleaned, 1);
-        }
-        return $cleaned;
     }
 }

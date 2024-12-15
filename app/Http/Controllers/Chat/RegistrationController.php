@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
 use App\Adapters\WhatsAppMessageAdapter;
+use App\Common\GeneralStatus;
 
 class RegistrationController extends BaseMessageController
 {
@@ -58,7 +59,7 @@ class RegistrationController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
             'data' => [
-                ...$sessionData['data'] ?? [],
+                ...($sessionData['data'] ?? []),
                 'step' => self::STATES['ACCOUNT_NUMBER_INPUT']
             ]
         ]);
@@ -103,7 +104,7 @@ class RegistrationController extends BaseMessageController
             'phone_number' => $message['sender']
         ]);
 
-        if ($validation['status'] !== 'success') {
+        if ($validation['status'] !== GeneralStatus::SUCCESS) {
             if (config('app.debug')) {
                 Log::warning('Account validation failed:', $validation);
             }
@@ -121,7 +122,7 @@ class RegistrationController extends BaseMessageController
                 'phone_number' => $message['sender']
             ]);
 
-            if ($otpResult['status'] !== 'success') {
+            if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
                 return $this->formatTextResponse(
                     "Failed to send verification code. Please try again later or contact support."
                 );
@@ -130,7 +131,7 @@ class RegistrationController extends BaseMessageController
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'ACCOUNT_REGISTRATION',
                 'data' => [
-                    ...$sessionData['data'],
+                    ...($sessionData['data'] ?? []),
                     'account_number' => $accountNumber,
                     'registration_reference' => $otpResult['data']['reference'],
                     'step' => self::STATES['OTP_VERIFICATION']
@@ -147,7 +148,7 @@ class RegistrationController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
             'data' => [
-                ...$sessionData['data'],
+                ...($sessionData['data'] ?? []),
                 'account_number' => $accountNumber,
                 'step' => self::STATES['PIN_SETUP']
             ]
@@ -183,7 +184,7 @@ class RegistrationController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => $sessionData['state'],
             'data' => [
-                ...$sessionData['data'],
+                ...($sessionData['data'] ?? []),
                 'pin' => $pin,
                 'step' => self::STATES['CONFIRM_PIN']
             ]
@@ -220,7 +221,7 @@ class RegistrationController extends BaseMessageController
             'pin' => $sessionData['data']['pin']
         ]);
 
-        if ($otpResult['status'] !== 'success') {
+        if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
             return $this->formatTextResponse(
                 "Failed to send verification code. Please try again later or contact support."
             );
@@ -229,7 +230,7 @@ class RegistrationController extends BaseMessageController
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => $sessionData['state'],
             'data' => [
-                ...$sessionData['data'],
+                ...($sessionData['data'] ?? []),
                 'registration_reference' => $otpResult['data']['reference'],
                 'step' => self::STATES['OTP_VERIFICATION']
             ]
@@ -260,7 +261,7 @@ class RegistrationController extends BaseMessageController
             ]
         );
 
-        if ($verificationResult['status'] !== 'success') {
+        if ($verificationResult['status'] !== GeneralStatus::SUCCESS) {
             return $this->formatTextResponse(
                 "Invalid verification code. Please try again:"
             );
