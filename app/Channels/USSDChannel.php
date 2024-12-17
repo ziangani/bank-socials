@@ -2,6 +2,7 @@
 
 namespace App\Channels;
 
+use App\Common\GeneralStatus;
 use App\Interfaces\ChannelInterface;
 use App\Models\WhatsAppSessions;
 use App\Models\ChatUser;
@@ -284,7 +285,7 @@ class USSDChannel implements ChannelInterface
             'phone_number' => $session->sender
         ]);
 
-        if ($validation['status'] !== 'SUCCESS') {
+        if ($validation['status'] !== GeneralStatus::SUCCESS) {
             return [
                 'message' => $validation['message'],
                 'type' => 'CON'
