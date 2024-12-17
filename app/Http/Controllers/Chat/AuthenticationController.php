@@ -4,12 +4,53 @@ namespace App\Http\Controllers\Chat;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 use App\Models\ChatUser;
 use App\Models\ChatUserLogin;
 use App\Adapters\WhatsAppMessageAdapter;
 
 class AuthenticationController extends BaseMessageController
 {
+    /**
+     * Process PIN verification for USSD
+     */
+    public function processPINVerification(array $message, array $sessionData): array
+    {
+        if (config('app.debug')) {
+            Log::info('Processing PIN verification:', [
+                'sender' => $message['sender']
+            ]);
+        }
+
+        // Get chat user
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+        if (!$chatUser) {
+            return [
+                'message' => "User not found. Please register first.",
+                'type' => 'text'
+            ];
+        }
+
+        // Verify PIN
+        if (!Hash::check($message['content'], $chatUser->pin)) {
+            return [
+                'message' => "Invalid PIN. Please try again or type 00 to return to main menu.",
+                'type' => 'text'
+            ];
+        }
+
+        // Create new login record
+        ChatUserLogin::createLogin($chatUser, $message['session_id']);
+
+        // Update session state
+        $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'WELCOME',
+            'data' => []
+        ]);
+
+        return app(MenuController::class)->showMainMenu($message);
+    }
+
     /**
      * Initiate OTP verification
      */

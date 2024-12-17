@@ -6,6 +6,7 @@ use App\Models\ChatUser;
 use Illuminate\Support\Facades\Log;
 use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
+use App\Adapters\WhatsAppMessageAdapter;
 
 class StateController extends BaseMessageController
 {
@@ -63,6 +64,14 @@ class StateController extends BaseMessageController
             ]);
         }
 
+        // Process authentication states
+        if ($state === 'AUTHENTICATION') {
+            // For USSD, use PIN verification
+            if (!($this->messageAdapter instanceof WhatsAppMessageAdapter)) {
+                return $this->authenticationController->processPINVerification($message, $sessionData);
+            }
+        }
+
         // Process OTP verification based on context
         if ($state === 'OTP_VERIFICATION') {
             // Check if this is a registration OTP verification
@@ -98,7 +107,19 @@ class StateController extends BaseMessageController
 
         // Check authentication for protected states
         if (!$this->authenticationController->isUserAuthenticated($message['sender'])) {
-            return $this->authenticationController->initiateOTPVerification($message);
+            if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                return $this->authenticationController->initiateOTPVerification($message);
+            } else {
+                // For USSD, set state to AUTHENTICATION and request PIN
+                $this->messageAdapter->updateSession($message['session_id'], [
+                    'state' => 'AUTHENTICATION',
+                    'data' => []
+                ]);
+                return [
+                    'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
+                    'type' => 'text'
+                ];
+            }
         }
 
         // Transfer states

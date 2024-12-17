@@ -45,7 +45,7 @@ class MenuController extends BaseMessageController
         foreach ($unregisteredMenu as $key => $option) {
             $welcomeText .= "{$key}. {$option['text']}\n";
         }
-        
+
         $welcomeText .= "\nReply with the number of your choice.";
 
         return [

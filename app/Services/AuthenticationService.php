@@ -32,7 +32,8 @@ class AuthenticationService extends BaseService
                 'message' => 'OTP sent successfully',
                 'data' => [
                     'requires_otp' => true,
-                    'reference' => $reference
+                    'reference' => $reference,
+                    'otp' => config('app.debug') ? $otp : null // Include OTP in debug mode only
                 ]
             ];
 
@@ -160,7 +161,8 @@ class AuthenticationService extends BaseService
                 'message' => 'OTP sent successfully',
                 'data' => [
                     'requires_otp' => true,
-                    'reference' => $reference
+                    'reference' => $reference,
+                    'otp' => config('app.debug') ? $otp : null // Include OTP in debug mode only
                 ]
             ];
 

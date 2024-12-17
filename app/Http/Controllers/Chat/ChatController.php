@@ -100,15 +100,28 @@ class ChatController extends BaseMessageController
                 if ($parsedMessage['content'] === '00') {
                     // Only allow return to main menu if user is registered
                     if ($chatUser) {
-                        // If user is not authenticated, initiate OTP verification
+                        // If user is not authenticated, initiate authentication
                         if (!$isAuthenticated) {
-                            // Update session state to OTP_VERIFICATION
-                            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
-                                'state' => 'OTP_VERIFICATION',
-                                'data' => []
-                            ]);
-                            
-                            $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                            if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                                // WhatsApp uses OTP
+                                $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                                    'state' => 'OTP_VERIFICATION',
+                                    'data' => [
+                                        'is_authentication' => true
+                                    ]
+                                ]);
+                                $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                            } else {
+                                // USSD uses PIN
+                                $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                                    'state' => 'AUTHENTICATION',
+                                    'data' => []
+                                ]);
+                                $response = [
+                                    'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
+                                    'type' => 'text'
+                                ];
+                            }
                         } else {
                             // Update session state to WELCOME
                             $this->messageAdapter->updateSession($parsedMessage['session_id'], [
@@ -134,18 +147,32 @@ class ChatController extends BaseMessageController
                         'REGISTRATION_INIT', 
                         'ACCOUNT_REGISTRATION', 
                         'OTP_VERIFICATION',
+                        'AUTHENTICATION',
                         'HELP'
                     ]);
                     
                     if ($requiresAuth && !$isAuthenticated) {
-                        // User needs to authenticate
-                        $this->messageAdapter->updateSession($parsedMessage['session_id'], [
-                            'state' => 'OTP_VERIFICATION',
-                            'data' => [
-                                'is_authentication' => true
-                            ]
-                        ]);
-                        $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                        // User needs to authenticate - use appropriate method based on channel
+                        if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                            // WhatsApp uses OTP
+                            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                                'state' => 'OTP_VERIFICATION',
+                                'data' => [
+                                    'is_authentication' => true
+                                ]
+                            ]);
+                            $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                        } else {
+                            // USSD uses PIN
+                            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                                'state' => 'AUTHENTICATION',
+                                'data' => []
+                            ]);
+                            $response = [
+                                'message' => "Welcome to Social Banking\nPlease enter your PIN to continue:",
+                                'type' => 'text'
+                            ];
+                        }
                     } else {
                         // Add authenticated user to session data if available
                         if ($isAuthenticated) {

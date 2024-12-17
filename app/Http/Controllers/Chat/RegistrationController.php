@@ -112,8 +112,9 @@ class RegistrationController extends BaseMessageController
                 Log::warning('Account validation failed:', $validation);
             }
 
+            $errorMessage = $validation['message'] ?? 'Invalid account number';
             return $this->formatTextResponse(
-                "Invalid account number. Please enter a valid 10-digit account number:"
+                "{$errorMessage}\n\nPlease enter a valid 10-digit account number:"
             );
         }
 
@@ -187,6 +188,16 @@ class RegistrationController extends BaseMessageController
                 Log::warning('Invalid PIN format');
             }
 
+            // Update session to ensure state consistency
+            $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+                'step' => self::STATES['PIN_SETUP']
+            ]);
+
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'ACCOUNT_REGISTRATION',
+                'data' => $sessionDataMerged
+            ]);
+
             return $this->formatTextResponse("Invalid PIN. Please enter exactly 4 digits for your PIN:");
         }
 
@@ -196,7 +207,7 @@ class RegistrationController extends BaseMessageController
         ]);
 
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => $sessionData['state'],
+            'state' => 'ACCOUNT_REGISTRATION',
             'data' => $sessionDataMerged
         ]);
 
@@ -220,6 +231,17 @@ class RegistrationController extends BaseMessageController
             if (config('app.debug')) {
                 Log::warning('PINs do not match');
             }
+
+            // Update session to reset PIN setup with state consistency
+            $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+                'step' => self::STATES['PIN_SETUP'],
+                'pin' => null // Clear the invalid PIN
+            ]);
+
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'ACCOUNT_REGISTRATION',
+                'data' => $sessionDataMerged
+            ]);
 
             return $this->formatTextResponse("PINs do not match. Please set up your PIN again (must be 4 digits):");
         }
@@ -250,8 +272,13 @@ class RegistrationController extends BaseMessageController
             'data' => $sessionDataMerged
         ]);
 
+        // Use appropriate message based on channel
+        $message = $this->isWhatsAppChannel() 
+            ? "A verification code has been sent to your WhatsApp number.\n"
+            : "A verification code has been sent to your phone via SMS.\n";
+
         return $this->formatTextResponse(
-            "A verification code has been sent to your WhatsApp number.\n" .
+            $message .
             "Please enter the code to complete registration:"
         );
     }
@@ -271,7 +298,8 @@ class RegistrationController extends BaseMessageController
             // Generate new OTP
             $otpResult = $this->authService->registerWithAccount([
                 'account_number' => $sessionData['data']['account_number'],
-                'phone_number' => $message['sender']
+                'phone_number' => $message['sender'],
+                'pin' => $sessionData['data']['pin'] ?? null // Include PIN if it exists (USSD)
             ]);
 
             if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
