@@ -143,7 +143,7 @@ class USSDChannel implements ChannelInterface
 
         // Check if user is registered
         $chatUser = ChatUser::where('phone_number', $phoneNumber)->first();
-        
+
         if (!$chatUser) {
             WhatsAppSessions::createNewState(
                 $sessionId,
@@ -215,7 +215,7 @@ class USSDChannel implements ChannelInterface
     protected function handleInitialPin(WhatsAppSessions $session, string $input): array
     {
         $chatUser = ChatUser::where('phone_number', $session->sender)->first();
-        
+
         if (!$chatUser) {
             return [
                 'message' => "Account not registered. Please register first.\n1. Register\n2. Help",
@@ -286,7 +286,7 @@ class USSDChannel implements ChannelInterface
 
         if ($validation['status'] !== 'SUCCESS') {
             return [
-                'message' => 'Invalid account number. Please try again:',
+                'message' => $validation['message'],
                 'type' => 'CON'
             ];
         }
@@ -459,7 +459,7 @@ class USSDChannel implements ChannelInterface
     protected function handleTransactionPin(WhatsAppSessions $session, string $input): array
     {
         $chatUser = ChatUser::where('phone_number', $session->sender)->first();
-        
+
         if (!$chatUser || !Hash::check($input, $chatUser->pin)) {
             return [
                 'message' => 'Invalid PIN. Please try again.',
