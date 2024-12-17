@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Chat;
 
 use App\Services\AuthenticationService;
 use App\Models\ChatUser;
+use App\Models\ChatUserLogin;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use App\Interfaces\MessageAdapterInterface;
@@ -133,6 +134,8 @@ class RegistrationController extends BaseMessageController
             $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
                 'account_number' => $accountNumber,
                 'registration_reference' => $otpResult['data']['reference'],
+                'otp' => $otpResult['data']['otp'],
+                'otp_generated_at' => now(),
                 'step' => self::STATES['OTP_VERIFICATION']
             ]);
 
@@ -236,6 +239,8 @@ class RegistrationController extends BaseMessageController
 
         $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
             'registration_reference' => $otpResult['data']['reference'],
+            'otp' => $otpResult['data']['otp'],
+            'otp_generated_at' => now(),
             'step' => self::STATES['OTP_VERIFICATION']
         ]);
 
@@ -257,20 +262,41 @@ class RegistrationController extends BaseMessageController
             Log::info('Processing OTP verification');
         }
 
-        $otp = $message['content'];
-        $reference = $sessionData['data']['registration_reference'];
+        $inputOtp = $message['content'];
+        $storedOtp = $sessionData['data']['otp'] ?? null;
+        $otpGeneratedAt = $sessionData['data']['otp_generated_at'] ?? null;
 
-        // Verify OTP through AuthenticationService
-        $verificationResult = $this->authService->verifyRegistrationOTP(
-            $reference,
-            $otp,
-            [
+        // Check if OTP exists and hasn't expired
+        if (!$storedOtp || !$otpGeneratedAt || Carbon::parse($otpGeneratedAt)->addMinutes(5)->isPast()) {
+            // Generate new OTP
+            $otpResult = $this->authService->registerWithAccount([
                 'account_number' => $sessionData['data']['account_number'],
                 'phone_number' => $message['sender']
-            ]
-        );
+            ]);
 
-        if ($verificationResult['status'] !== GeneralStatus::SUCCESS) {
+            if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
+                return $this->formatTextResponse(
+                    "Failed to send verification code. Please try again later or contact support."
+                );
+            }
+
+            // Update session with new OTP
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'OTP_VERIFICATION',
+                'data' => array_merge($sessionData['data'], [
+                    'otp' => $otpResult['data']['otp'],
+                    'otp_generated_at' => now(),
+                    'registration_reference' => $otpResult['data']['reference']
+                ])
+            ]);
+
+            return $this->formatTextResponse(
+                "A new verification code has been sent to your number.\n\n" .
+                "Test OTP: " . $otpResult['data']['otp']
+            );
+        }
+
+        if ($inputOtp !== $storedOtp) {
             return $this->formatTextResponse(
                 "Invalid verification code. Please try again:"
             );
@@ -291,12 +317,15 @@ class RegistrationController extends BaseMessageController
 
         try {
             // Use updateOrCreate to handle both new and existing users
-            ChatUser::updateOrCreate(
+            $chatUser = ChatUser::updateOrCreate(
                 ['phone_number' => $message['sender']], // The unique identifier
                 $userData // The values to update or create with
             );
 
-            // Set session state directly to WELCOME and show the main menu
+            // Create login record for the new user
+            ChatUserLogin::createLogin($chatUser, $message['session_id']);
+
+            // Set session state to WELCOME and clear registration data
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'WELCOME',
                 'data' => []

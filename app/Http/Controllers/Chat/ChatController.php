@@ -100,19 +100,31 @@ class ChatController extends BaseMessageController
                 if ($parsedMessage['content'] === '00') {
                     // Only allow return to main menu if user is registered
                     if ($chatUser) {
-                        // Update session state to WELCOME
+                        // If user is not authenticated, initiate OTP verification
+                        if (!$isAuthenticated) {
+                            // Update session state to OTP_VERIFICATION
+                            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                                'state' => 'OTP_VERIFICATION',
+                                'data' => []
+                            ]);
+                            
+                            $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                        } else {
+                            // Update session state to WELCOME
+                            $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                                'state' => 'WELCOME',
+                                'data' => []
+                            ]);
+                            
+                            $response = $this->menuController->showMainMenu($parsedMessage);
+                        }
+                    } else {
+                        // Show unregistered menu for unregistered users
                         $this->messageAdapter->updateSession($parsedMessage['session_id'], [
                             'state' => 'WELCOME',
                             'data' => []
                         ]);
                         
-                        // Show appropriate menu based on authentication
-                        if ($isAuthenticated) {
-                            $response = $this->menuController->showMainMenu($parsedMessage);
-                        } else {
-                            $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
-                        }
-                    } else {
                         $response = $this->menuController->showUnregisteredMenu($parsedMessage);
                     }
                 } else {
@@ -128,7 +140,10 @@ class ChatController extends BaseMessageController
                     if ($requiresAuth && !$isAuthenticated) {
                         // User needs to authenticate
                         $this->messageAdapter->updateSession($parsedMessage['session_id'], [
-                            'state' => 'OTP_VERIFICATION'
+                            'state' => 'OTP_VERIFICATION',
+                            'data' => [
+                                'is_authentication' => true
+                            ]
                         ]);
                         $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
                     } else {

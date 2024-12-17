@@ -43,6 +43,11 @@ class SessionController extends BaseMessageController
     {
         // End the session
         if ($message['session_id']) {
+            // Deactivate any active logins for this session
+            ChatUserLogin::where('session_id', $message['session_id'])
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+
             $this->messageAdapter->endSession($message['session_id']);
         }
 
@@ -66,6 +71,13 @@ class SessionController extends BaseMessageController
 
             // End current session
             if ($parsedMessage['session_id']) {
+                // If not authenticated, deactivate any existing logins
+                if (!$isAuthenticated) {
+                    ChatUserLogin::where('session_id', $parsedMessage['session_id'])
+                        ->where('is_active', true)
+                        ->update(['is_active' => false]);
+                }
+
                 $this->messageAdapter->endSession($parsedMessage['session_id']);
                 
                 // Create a new clean session
@@ -76,18 +88,20 @@ class SessionController extends BaseMessageController
                     'data' => [
                         'session_id' => $parsedMessage['session_id'],
                         'message_id' => $parsedMessage['message_id'],
-                        'sender' => $parsedMessage['sender'],
-                        'last_message' => '00'
+                        'sender' => $parsedMessage['sender']
                     ]
                 ]);
             }
 
             // Determine appropriate response based on user status
             if (!$chatUser) {
+                // Unregistered user
                 $response = $this->menuController->showUnregisteredMenu($parsedMessage);
             } else if (!$isAuthenticated) {
+                // Registered but not authenticated
                 $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
             } else {
+                // Registered and authenticated
                 $response = $this->menuController->showMainMenu($parsedMessage);
             }
 
@@ -121,33 +135,40 @@ class SessionController extends BaseMessageController
      */
     public function handleExitCommand(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
-        // Deactivate any active logins
-        $activeLogin = ChatUserLogin::getActiveLogin($parsedMessage['sender']);
-        if ($activeLogin) {
-            $activeLogin->deactivate();
+        try {
+            // Deactivate any active logins
+            ChatUserLogin::where('session_id', $parsedMessage['session_id'])
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
+
+            // End the session
+            if ($parsedMessage['session_id']) {
+                $this->messageAdapter->endSession($parsedMessage['session_id']);
+            }
+
+            $response = [
+                'message' => "Thank you for using our service. If you need further assistance, simply reply with 'Hi'.\n\nGoodbye 👋!",
+                'type' => 'text',
+                'end_session' => true
+            ];
+
+            // Send response via message adapter
+            $options = ['message_id' => $parsedMessage['message_id']];
+            $this->messageAdapter->sendMessage(
+                $parsedMessage['sender'],
+                $response['message'],
+                $options
+            );
+
+            // Format response for channel
+            $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
+            return response()->json($formattedResponse);
+        } catch (\Exception $e) {
+            Log::error('Exit command error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to process exit command'
+            ], 500);
         }
-
-        // End the session
-        if ($parsedMessage['session_id']) {
-            $this->messageAdapter->endSession($parsedMessage['session_id']);
-        }
-
-        $response = [
-            'message' => "Thank you for using our service. If you need further assistance, simply reply with 'Hi'.\n\nGoodbye 👋!",
-            'type' => 'text',
-            'end_session' => true
-        ];
-
-        // Send response via message adapter
-        $options = ['message_id' => $parsedMessage['message_id']];
-        $this->messageAdapter->sendMessage(
-            $parsedMessage['sender'],
-            $response['message'],
-            $options
-        );
-
-        // Format response for channel
-        $formattedResponse = $this->messageAdapter->formatOutgoingMessage($response);
-        return response()->json($formattedResponse);
     }
 }

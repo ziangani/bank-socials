@@ -23,7 +23,8 @@ class AuthenticationController extends BaseMessageController
             'state' => 'OTP_VERIFICATION',
             'data' => [
                 'otp' => $otp,
-                'otp_generated_at' => now()
+                'otp_generated_at' => now(),
+                'is_authentication' => true // Flag to distinguish from registration OTP
             ]
         ]);
 
@@ -42,6 +43,7 @@ class AuthenticationController extends BaseMessageController
         $inputOtp = $message['content'];
         $storedOtp = $sessionData['data']['otp'] ?? null;
         $otpGeneratedAt = $sessionData['data']['otp_generated_at'] ?? null;
+        $isAuthentication = $sessionData['data']['is_authentication'] ?? false;
 
         // Verify OTP
         if (!$storedOtp || !$otpGeneratedAt) {
@@ -56,24 +58,15 @@ class AuthenticationController extends BaseMessageController
             ];
         }
 
-        // Get chat user to determine context
-        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
-
         if ($inputOtp !== $storedOtp) {
-            // Different error messages based on context
-            if (!$chatUser) {
-                return [
-                    'message' => "Invalid verification code. Please try again:",
-                    'type' => 'text'
-                ];
-            } else {
-                return [
-                    'message' => "Invalid OTP. Please try again or type 00 to return to main menu.",
-                    'type' => 'text'
-                ];
-            }
+            return [
+                'message' => "Invalid OTP. Please try again or type 00 to return to main menu.",
+                'type' => 'text'
+            ];
         }
 
+        // Get chat user
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         if (!$chatUser) {
             return [
                 'message' => "User not found. Please register first.",
@@ -86,7 +79,8 @@ class AuthenticationController extends BaseMessageController
 
         // Update session state
         $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'WELCOME'
+            'state' => 'WELCOME',
+            'data' => []
         ]);
 
         return app(MenuController::class)->showMainMenu($message);
