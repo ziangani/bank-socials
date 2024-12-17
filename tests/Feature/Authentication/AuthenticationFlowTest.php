@@ -108,18 +108,9 @@ class AuthenticationFlowTest extends TestCase
             });
             $mock->shouldReceive('markMessageAsRead')->byDefault();
             $mock->shouldReceive('isMessageProcessed')->andReturn(false);
-            $mock->shouldReceive('createSession')->andReturnUsing(function($data) {
-                $this->sessionData[$data['session_id']] = [
-                    'state' => 'AUTHENTICATION',
-                    'data' => []
-                ];
-                return $data['session_id'];
-            });
+            $mock->shouldReceive('createSession')->andReturn('test-session');
             $mock->shouldReceive('getSessionData')->andReturnUsing(function($sessionId) {
-                Log::info('Getting session data for USSD', [
-                    'session_id' => $sessionId,
-                    'data' => $this->sessionData[$sessionId] ?? null
-                ]);
+                Log::info('Getting session data for USSD', ['session_id' => $sessionId]);
                 return $this->sessionData[$sessionId] ?? null;
             });
             $mock->shouldReceive('updateSession')->andReturnUsing(function($sessionId, $data) {
@@ -150,12 +141,21 @@ class AuthenticationFlowTest extends TestCase
             });
             $mock->shouldReceive('markMessageAsRead')->byDefault();
             $mock->shouldReceive('isMessageProcessed')->andReturn(false);
-            $mock->shouldReceive('createSession')->andReturnUsing(function($data) {
-                $this->sessionData[$data['session_id']] = [
-                    'state' => 'OTP_VERIFICATION',
-                    'data' => [
-                        'otp' => '123456',
-                        'otp_generated_at' => now(),
+            $mock->shouldReceive('createSession')->andReturn('test-session');
+            $mock->shouldReceive('getSessionData')->andReturnUsing(function($sessionId) {
+                Log::info('Getting session data for WhatsApp', ['session_id' => $sessionId]);
+                return $this->sessionData[$sessionId] ?? null;
+            });
+            $mock->shouldReceive('updateSession')->andReturnUsing(function($sessionId, $data) {
+                Log::info('Updating WhatsApp session', [
+                    'session_id' => $sessionId,
+                    'data' => $data
+                ]);
+                $this->sessionData[$sessionId] = $data;
+                return true;
+            });
+            $mock->shouldReceive('markMessageAsProcessed')->byDefault();
+            $mock->shouldReceive('sendMessage')->byDefault();
             $mock->shouldReceive('formatOutgoingMessage')->andReturnArg(0);
             $mock->shouldReceive('endSession')->andReturn(true);
             $mock->shouldReceive('instanceOf')->with(WhatsAppMessageAdapter::class)->andReturn(true);
@@ -278,6 +278,12 @@ class AuthenticationFlowTest extends TestCase
         
         $this->assertStringContains('Welcome to Social Banking', $responseData['message']);
         $this->assertStringContains('Please enter your PIN', $responseData['message']);
+
+        // Set session state for PIN verification
+        $this->sessionData['test-session'] = [
+            'state' => 'AUTHENTICATION',
+            'data' => []
+        ];
 
         // Step 2: Enter PIN
         $request = new Request([

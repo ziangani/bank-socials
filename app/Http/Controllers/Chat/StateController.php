@@ -68,7 +68,17 @@ class StateController extends BaseMessageController
         if ($state === 'AUTHENTICATION') {
             // For USSD, use PIN verification
             if (!($this->messageAdapter instanceof WhatsAppMessageAdapter)) {
-                return $this->authenticationController->processPINVerification($message, $sessionData);
+                $result = $this->authenticationController->processPINVerification($message, $sessionData);
+                
+                // If PIN verification was successful, update session state
+                if (str_contains($result['message'], 'Welcome to main menu')) {
+                    $this->messageAdapter->updateSession($message['session_id'], [
+                        'state' => 'WELCOME',
+                        'data' => []
+                    ]);
+                }
+                
+                return $result;
             }
         }
 
@@ -79,7 +89,17 @@ class StateController extends BaseMessageController
                 return $this->registrationController->processAccountRegistration($message, $sessionData);
             }
             // Otherwise, it's an authentication OTP verification
-            return $this->authenticationController->processOTPVerification($message, $sessionData);
+            $result = $this->authenticationController->processOTPVerification($message, $sessionData);
+            
+            // If OTP verification was successful, update session state
+            if (str_contains($result['message'], 'Welcome to main menu')) {
+                $this->messageAdapter->updateSession($message['session_id'], [
+                    'state' => 'WELCOME',
+                    'data' => []
+                ]);
+            }
+            
+            return $result;
         }
 
         // Main menu states
@@ -108,6 +128,13 @@ class StateController extends BaseMessageController
         // Check authentication for protected states
         if (!$this->authenticationController->isUserAuthenticated($message['sender'])) {
             if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
+                // For WhatsApp, initiate OTP verification
+                $this->messageAdapter->updateSession($message['session_id'], [
+                    'state' => 'OTP_VERIFICATION',
+                    'data' => [
+                        'is_authentication' => true
+                    ]
+                ]);
                 return $this->authenticationController->initiateOTPVerification($message);
             } else {
                 // For USSD, set state to AUTHENTICATION and request PIN
