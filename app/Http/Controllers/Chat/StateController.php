@@ -51,7 +51,7 @@ class StateController extends BaseMessageController
         // Check if user is registered
         $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         
-        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION', 'REGISTRATION_SUCCESS', 'HELP'])) {
+        if (!$chatUser && !in_array($state, ['WELCOME', 'REGISTRATION_INIT', 'ACCOUNT_REGISTRATION', 'OTP_VERIFICATION', 'HELP'])) {
             return $this->menuController->showUnregisteredMenu($message);
         }
 
@@ -73,23 +73,12 @@ class StateController extends BaseMessageController
             return $this->authenticationController->processOTPVerification($message, $sessionData);
         }
 
-        // Handle registration success state
-        if ($state === 'REGISTRATION_SUCCESS') {
-            // Update session to WELCOME state for next message
-            $this->messageAdapter->updateSession($message['session_id'], [
-                'state' => 'WELCOME'
-            ]);
-            
-            // Show success message with registered account number
-            return $this->formatTextResponse(
-                "Registration successful! ✅\n\n" .
-                "Your account (*" . substr($sessionData['data']['account_number'], -4) . ") has been registered.\n\n" .
-                "Reply with 00 to return to main menu."
-            );
-        }
-
         // Main menu states
         if (in_array($state, ['WELCOME'])) {
+            // Handle "00" for returning to main menu
+            if ($message['content'] === '00') {
+                return $this->menuController->showMainMenu($message);
+            }
             return $this->menuController->processWelcomeInput($message, $sessionData);
         }
 

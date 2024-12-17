@@ -296,23 +296,19 @@ class RegistrationController extends BaseMessageController
                 $userData // The values to update or create with
             );
 
-            // Set session state to REGISTRATION_SUCCESS
+            // Set session state directly to WELCOME and show the main menu
             $this->messageAdapter->updateSession($message['session_id'], [
-                'state' => 'REGISTRATION_SUCCESS',
-                'data' => [
-                    'account_number' => $sessionData['data']['account_number']
-                ]
+                'state' => 'WELCOME',
+                'data' => []
             ]);
 
             if (config('app.debug')) {
-                Log::info('Registration successful, state set to REGISTRATION_SUCCESS');
+                Log::info('Registration successful, showing main menu');
             }
 
-            return $this->formatTextResponse(
-                "Registration successful! ✅\n\n" .
-                "Your account (*" . substr($sessionData['data']['account_number'], -4) . ") has been registered.\n\n" .
-                "Reply with 00 to return to main menu."
-            );
+            // Return success message and show main menu options
+            return app(MenuController::class)->showMainMenu($message);
+
         } catch (\Exception $e) {
             Log::error('Failed to save chat user:', ['error' => $e->getMessage()]);
             return $this->formatTextResponse(

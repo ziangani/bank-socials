@@ -7,18 +7,22 @@ use Illuminate\Support\Facades\Log;
 use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
 use App\Models\ChatUserLogin;
+use App\Models\ChatUser;
 
 class SessionController extends BaseMessageController
 {
     protected MenuController $menuController;
+    protected AuthenticationController $authenticationController;
 
     public function __construct(
         MessageAdapterInterface $messageAdapter,
         SessionManager $sessionManager,
-        MenuController $menuController
+        MenuController $menuController,
+        AuthenticationController $authenticationController
     ) {
         parent::__construct($messageAdapter, $sessionManager);
         $this->menuController = $menuController;
+        $this->authenticationController = $authenticationController;
     }
 
     /**
@@ -55,6 +59,11 @@ class SessionController extends BaseMessageController
     public function handleReturnToMainMenu(array $parsedMessage): \Illuminate\Http\JsonResponse
     {
         try {
+            // Check user registration and authentication status
+            $chatUser = ChatUser::where('phone_number', $parsedMessage['sender'])->first();
+            $activeLogin = ChatUserLogin::getActiveLogin($parsedMessage['sender']);
+            $isAuthenticated = $activeLogin && $activeLogin->isValid();
+
             // End current session
             if ($parsedMessage['session_id']) {
                 $this->messageAdapter->endSession($parsedMessage['session_id']);
@@ -73,8 +82,14 @@ class SessionController extends BaseMessageController
                 ]);
             }
 
-            // Get welcome message response
-            $response = $this->menuController->showMainMenu($parsedMessage);
+            // Determine appropriate response based on user status
+            if (!$chatUser) {
+                $response = $this->menuController->showUnregisteredMenu($parsedMessage);
+            } else if (!$isAuthenticated) {
+                $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+            } else {
+                $response = $this->menuController->showMainMenu($parsedMessage);
+            }
 
             // Send response via message adapter
             $options = [];

@@ -68,11 +68,6 @@ class ChatController extends BaseMessageController
                 return $this->authenticationController->handleLogout($parsedMessage);
             }
 
-            // Check for return to main menu command '00'
-            if ($parsedMessage['content'] === '00') {
-                return $this->sessionController->handleReturnToMainMenu($parsedMessage);
-            }
-
             // Get chat user and active login
             $chatUser = ChatUser::where('phone_number', $parsedMessage['sender'])->first();
             $activeLogin = ChatUserLogin::getActiveLogin($parsedMessage['sender']);
@@ -101,27 +96,54 @@ class ChatController extends BaseMessageController
 
                 $response = $this->handleWelcome($parsedMessage, $chatUser, $isAuthenticated);
             } else {
-                // Check if authentication is required for current state
-                $requiresAuth = !in_array($sessionData['state'], ['WELCOME', 'OTP_VERIFICATION']);
-                
-                if ($requiresAuth && !$isAuthenticated) {
-                    // User needs to authenticate
-                    $this->messageAdapter->updateSession($parsedMessage['session_id'], [
-                        'state' => 'OTP_VERIFICATION'
-                    ]);
-                    $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
-                } else {
-                    // Add authenticated user to session data if available
-                    if ($isAuthenticated) {
-                        $sessionData['authenticated_user'] = $activeLogin->chatUser;
+                // Check if this is a return to main menu command
+                if ($parsedMessage['content'] === '00') {
+                    // Only allow return to main menu if user is registered
+                    if ($chatUser) {
+                        // Update session state to WELCOME
+                        $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                            'state' => 'WELCOME',
+                            'data' => []
+                        ]);
+                        
+                        // Show appropriate menu based on authentication
+                        if ($isAuthenticated) {
+                            $response = $this->menuController->showMainMenu($parsedMessage);
+                        } else {
+                            $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                        }
+                    } else {
+                        $response = $this->menuController->showUnregisteredMenu($parsedMessage);
                     }
+                } else {
+                    // Check if authentication is required for current state
+                    $requiresAuth = !in_array($sessionData['state'], [
+                        'WELCOME', 
+                        'REGISTRATION_INIT', 
+                        'ACCOUNT_REGISTRATION', 
+                        'OTP_VERIFICATION',
+                        'HELP'
+                    ]);
+                    
+                    if ($requiresAuth && !$isAuthenticated) {
+                        // User needs to authenticate
+                        $this->messageAdapter->updateSession($parsedMessage['session_id'], [
+                            'state' => 'OTP_VERIFICATION'
+                        ]);
+                        $response = $this->authenticationController->initiateOTPVerification($parsedMessage);
+                    } else {
+                        // Add authenticated user to session data if available
+                        if ($isAuthenticated) {
+                            $sessionData['authenticated_user'] = $activeLogin->chatUser;
+                        }
 
-                    // Process based on current state
-                    $response = $this->stateController->processState(
-                        $sessionData['state'],
-                        $parsedMessage,
-                        $sessionData
-                    );
+                        // Process based on current state
+                        $response = $this->stateController->processState(
+                            $sessionData['state'],
+                            $parsedMessage,
+                            $sessionData
+                        );
+                    }
                 }
             }
 

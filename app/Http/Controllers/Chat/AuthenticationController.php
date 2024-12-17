@@ -56,15 +56,24 @@ class AuthenticationController extends BaseMessageController
             ];
         }
 
+        // Get chat user to determine context
+        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
+
         if ($inputOtp !== $storedOtp) {
-            return [
-                'message' => "Invalid OTP. Please try again or type 00 to return to main menu.",
-                'type' => 'text'
-            ];
+            // Different error messages based on context
+            if (!$chatUser) {
+                return [
+                    'message' => "Invalid verification code. Please try again:",
+                    'type' => 'text'
+                ];
+            } else {
+                return [
+                    'message' => "Invalid OTP. Please try again or type 00 to return to main menu.",
+                    'type' => 'text'
+                ];
+            }
         }
 
-        // Get chat user
-        $chatUser = ChatUser::where('phone_number', $message['sender'])->first();
         if (!$chatUser) {
             return [
                 'message' => "User not found. Please register first.",

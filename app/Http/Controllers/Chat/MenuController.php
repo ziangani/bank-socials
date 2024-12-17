@@ -46,7 +46,7 @@ class MenuController extends BaseMessageController
             $welcomeText .= "{$key}. {$option['text']}\n";
         }
 
-        $welcomeText .= "\n📱 Select 1 to register - you'll need your account number ready\n";
+        $welcomeText .= "\n📱 Select 1 to register\n";
         $welcomeText .= "❓ Select 2 for help and guidance\n";
         $welcomeText .= "\nReply with the number of your choice.";
 
