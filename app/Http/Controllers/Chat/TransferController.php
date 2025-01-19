@@ -109,8 +109,8 @@ class TransferController extends BaseMessageController
         ]);
 
         $prompts = [
-            'internal' => "Please enter recipient's account number (10 digits):",
-            'bank' => "Please enter recipient's bank account number (10 digits):",
+            'internal' => "Please enter recipient's account number:",
+            'bank' => "Please enter recipient's bank account number:",
             'mobile' => "Please enter recipient's mobile number (format: 07XXXXXXXX):"
         ];
 
@@ -139,8 +139,8 @@ class TransferController extends BaseMessageController
             }
 
             $errorMessages = [
-                'internal' => "Invalid format. Please enter a 10-digit account number:",
-                'bank' => "Invalid format. Please enter a 10-digit bank account number:",
+                'internal' => "Invalid format. Please enter a valid account number:",
+                'bank' => "Invalid format. Please enter a valid bank account number:",
                 'mobile' => "Invalid format. Please enter a valid mobile number (07XXXXXXXX):"
             ];
 
@@ -226,7 +226,12 @@ class TransferController extends BaseMessageController
         ]);
 
         // Format confirmation message based on transfer type
-        $confirmationMsg = $this->formatConfirmationMessage($sessionData['data']['transfer_type'], $sessionData['data']['recipient'], $amount);
+        $confirmationMsg = $this->formatConfirmationMessage(
+            $sessionData['data']['transfer_type'],
+            $sessionData['data']['recipient'],
+            $amount,
+            $sessionData
+        );
         
         return $this->formatMenuResponse(
             $confirmationMsg,
@@ -324,8 +329,8 @@ class TransferController extends BaseMessageController
     protected function validateRecipient(string $recipient, string $type): bool
     {
         return match($type) {
-            'internal' => preg_match('/^\d{10}$/', $recipient), // 10-digit account number
-            'bank' => preg_match('/^\d{10}$/', $recipient), // 10-digit bank account
+            'internal' => preg_match('/^\d+$/', $recipient), // Any number of digits
+            'bank' => preg_match('/^\d+$/', $recipient), // Any number of digits
             'mobile' => preg_match('/^07\d{8}$/', $recipient), // Valid mobile number format
             default => false
         };
@@ -336,7 +341,7 @@ class TransferController extends BaseMessageController
         return is_numeric($amount) && $amount > 0;
     }
 
-    protected function formatConfirmationMessage(string $type, string $recipient, string $amount): string
+    protected function formatConfirmationMessage(string $type, string $recipient, string $amount, array $sessionData): string
     {
         $typeLabels = [
             'internal' => 'internal transfer',
