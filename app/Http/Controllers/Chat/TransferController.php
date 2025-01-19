@@ -130,9 +130,9 @@ class TransferController extends BaseMessageController
                     $buttons = [];
                     $index = 1;
                     foreach ($savedAccounts as $friendly => $account) {
-                        // Include account number in button text after friendly name
                         $buttons[$account] = [
-                            'text' => $friendly . ' (' . $account . ')'
+                            'text' => $friendly,
+                            'id' => $account
                         ];
                         $index++;
                     }

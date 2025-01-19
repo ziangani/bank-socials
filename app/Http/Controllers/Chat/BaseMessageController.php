@@ -27,15 +27,20 @@ class BaseMessageController extends Controller
     protected function formatMenuResponse(string $message, array $menu, bool $endSession = false): array
     {
         // Extract button texts and IDs if present
-        $menuButtons = array_map(function($item) {
+        $menuButtons = [];
+        foreach ($menu as $key => $item) {
             if (is_array($item)) {
-                return [
+                $menuButtons[] = [
                     'text' => $item['text'] ?? '',
-                    'id' => $item['id'] ?? null
+                    'id' => $item['id'] ?? $key
+                ];
+            } else {
+                $menuButtons[] = [
+                    'text' => $item,
+                    'id' => $key
                 ];
             }
-            return ['text' => $item];
-        }, array_values($menu));
+        }
         
         return [
             'message' => $message,

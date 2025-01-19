@@ -121,14 +121,40 @@ class WhatsAppMessageParser
 
     protected function getInteractiveMessageContent(array $message): string
     {
-        $interactive = $message['interactive'] ?? [];
-        $type = $interactive['type'] ?? '';
+        try {
+            $interactive = $message['interactive'] ?? [];
+            $type = $interactive['type'] ?? '';
 
-        return match($type) {
-            'button_reply' => $interactive['button_reply']['id'] ?? '',
-            'list_reply' => $interactive['list_reply']['id'] ?? '',
-            default => ''
-        };
+            // First try to get the ID
+            $content = match($type) {
+                'button_reply' => $interactive['button_reply']['id'] ?? '',
+                'list_reply' => $interactive['list_reply']['id'] ?? '',
+                default => ''
+            };
+
+            // If no ID, try to get the title
+            if (empty($content)) {
+                $content = match($type) {
+                    'button_reply' => $interactive['button_reply']['title'] ?? '',
+                    'list_reply' => $interactive['list_reply']['title'] ?? '',
+                    default => ''
+                };
+            }
+
+            // Log the interactive content for debugging
+            if (config('app.debug')) {
+                Log::info('Interactive message content:', [
+                    'type' => $type,
+                    'content' => $content,
+                    'raw' => $interactive
+                ]);
+            }
+
+            return $content;
+        } catch (\Exception $e) {
+            Log::error('Error getting interactive message content: ' . $e->getMessage());
+            return '';
+        }
     }
 
     public function formatButtons(array $buttons): array

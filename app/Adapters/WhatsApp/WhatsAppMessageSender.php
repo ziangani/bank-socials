@@ -58,6 +58,22 @@ class WhatsAppMessageSender
 
             // Handle button messages
             if (isset($options['buttons'])) {
+                // Format buttons to include IDs if present
+                $buttons = [];
+                foreach ($options['buttons'] as $key => $button) {
+                    if (is_array($button)) {
+                        $buttons[] = [
+                            'text' => $button['text'],
+                            'id' => $button['id'] ?? $key
+                        ];
+                    } else {
+                        $buttons[] = [
+                            'text' => $button,
+                            'id' => $key
+                        ];
+                    }
+                }
+
                 // Use custom button IDs if specified
                 if (isset($options['use_custom_ids']) && $options['use_custom_ids']) {
                     return $this->whatsAppService->sendMessageWithCustomButtons(
@@ -65,7 +81,7 @@ class WhatsAppMessageSender
                         $recipient,
                         $messageId,
                         $message,
-                        $options['buttons']
+                        $buttons
                     );
                 }
                 
@@ -75,7 +91,7 @@ class WhatsAppMessageSender
                     $recipient,
                     $messageId,
                     $message,
-                    $options['buttons']
+                    $buttons
                 );
             }
 
