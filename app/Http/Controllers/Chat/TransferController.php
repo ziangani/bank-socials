@@ -129,7 +129,7 @@ class TransferController extends BaseMessageController
 
         $recipient = $message['content'];
         
-        // Validate recipient based on type
+        // Validate recipient format based on type
         if (!$this->validateRecipient($recipient, $type)) {
             if (config('app.debug')) {
                 Log::warning('Invalid recipient format:', [
@@ -147,7 +147,42 @@ class TransferController extends BaseMessageController
             return $this->formatTextResponse($errorMessages[$type]);
         }
 
-        // Update session with recipient while preserving state
+        // For bank transfers, verify account exists
+        if (in_array($type, ['internal', 'bank'])) {
+            $esb = new \App\Integrations\ESB();
+            $result = $esb->getAccountDetailsAndBalance($recipient);
+
+            if (!$result['status']) {
+                if (config('app.debug')) {
+                    Log::warning('Account verification failed:', [
+                        'recipient' => $recipient,
+                        'error' => $result['message']
+                    ]);
+                }
+                return $this->formatTextResponse(
+                    "Account not found or invalid. Please check the account number and try again:"
+                );
+            }
+
+            // Account exists, update session with recipient details
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => $sessionData['state'],
+                'data' => [
+                    ...$sessionData['data'],
+                    'recipient' => $recipient,
+                    'recipient_name' => $result['data']['account_name'] ?? 'Unknown',
+                    'step' => self::STATES['AMOUNT_INPUT']
+                ]
+            ]);
+
+            return $this->formatTextResponse(
+                "Account verified ✅\n" .
+                "Account holder: {$result['data']['account_name']}\n\n" .
+                "Please enter the amount to transfer:"
+            );
+        }
+
+        // For mobile money, just store the number
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => $sessionData['state'], // Maintain current state
             'data' => [
@@ -239,13 +274,33 @@ class TransferController extends BaseMessageController
             );
         }
 
-        // Process the transfer directly since PIN was already verified at login
+        // Get authenticated user
+        $user = $sessionData['authenticated_user'] ?? null;
+        if (!$user) {
+            throw new \Exception('User not authenticated');
+        }
+
+        // Process the transfer through ESB
         $transferData = $sessionData['data'];
-        $successMsg = $this->formatSuccessMessage(
-            $transferData['transfer_type'],
+        $esb = new \App\Integrations\ESB();
+        
+        $result = $esb->transferToBankAccount(
+            $user->account_number,
             $transferData['recipient'],
-            $transferData['amount']
+            $transferData['amount'],
+            'Transfer via Social Banking'
         );
+
+        if (!$result['status']) {
+            // Transfer failed
+            if (config('app.debug')) {
+                Log::error('Transfer failed:', ['error' => $result['message']]);
+            }
+            return $this->formatTextResponse(
+                "Transfer failed: {$result['message']}\n\n" .
+                "Reply with 00 to return to main menu."
+            );
+        }
 
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [
@@ -253,8 +308,15 @@ class TransferController extends BaseMessageController
         ]);
 
         if (config('app.debug')) {
-            Log::info('Transfer successful, session reset to welcome state');
+            Log::info('Transfer submitted:', ['result' => $result]);
         }
+
+        $successMsg = $this->formatSuccessMessage(
+            $transferData['transfer_type'],
+            $transferData['recipient'],
+            $transferData['amount'],
+            $result['data']
+        );
 
         return $this->formatTextResponse($successMsg . "\n\nReply with 00 to return to main menu.");
     }
@@ -283,25 +345,28 @@ class TransferController extends BaseMessageController
         ];
 
         $currency = config('social-banking.currency', 'MWK');
+        $recipientName = $sessionData['data']['recipient_name'] ?? null;
 
-        return "Please confirm {$typeLabels[$type]}:\n\n" .
-               "Recipient: {$recipient}\n" .
-               "Amount: {$currency} {$amount}\n\n" .
-               "Select an option:";
+        $message = "Please confirm {$typeLabels[$type]}:\n\n";
+        if ($recipientName) {
+            $message .= "To: {$recipientName}\n";
+        }
+        $message .= "Account: {$recipient}\n" .
+                   "Amount: {$currency} {$amount}\n\n" .
+                   "Select an option:";
+
+        return $message;
     }
 
-    protected function formatSuccessMessage(string $type, string $recipient, string $amount): string
+    protected function formatSuccessMessage(string $type, string $recipient, string $amount, array $data): string
     {
         $currency = config('social-banking.currency', 'MWK');
+        $status = ucfirst($data['status']); // Convert 'pending' to 'Pending'
 
-        return "Transfer successful! ✅\n\n" .
+        return "Transfer {$status}! ✅\n\n" .
                "Amount: {$currency} {$amount}\n" .
                "Recipient: {$recipient}\n" .
-               "Reference: " . $this->generateReference();
-    }
-
-    protected function generateReference(): string
-    {
-        return 'TRX' . strtoupper(uniqid());
+               "Reference: {$data['reference']}\n" .
+               "Date: {$data['value_date']}";
     }
 }

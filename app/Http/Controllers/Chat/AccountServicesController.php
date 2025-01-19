@@ -434,10 +434,22 @@ class AccountServicesController extends BaseMessageController
 
     protected function getAccountBalance(): array
     {
-        // Simulate balance fetch (replace with actual implementation)
+        $user = $this->sessionData['authenticated_user'] ?? null;
+        if (!$user) {
+            throw new \Exception('User not authenticated');
+        }
+
+        $esb = new \App\Integrations\ESB();
+        
+        $result = $esb->getAccountDetailsAndBalance($user->account_number);
+        
+        if (!$result['status']) {
+            throw new \Exception($result['message']);
+        }
+        
         return [
-            'available' => number_format(25000.00, 2),
-            'actual' => number_format(27500.00, 2)
+            'available' => number_format($result['data']['available_balance'] ?? 0, 2),
+            'actual' => number_format($result['data']['actual_balance'] ?? 0, 2)
         ];
     }
 
