@@ -202,20 +202,34 @@ class TransferController extends BaseMessageController
                 );
             }
 
-            // Account exists, update session with recipient details
+            // Get sender's account balance
+            $senderAccount = $sessionData['authenticated_user']->account_number;
+            $senderResult = $esb->getAccountDetailsAndBalance($senderAccount);
+            if (!$senderResult['status']) {
+                return $this->formatTextResponse(
+                    "Unable to fetch your account balance. Please try again later."
+                );
+            }
+
+            $availableBalance = $senderResult['data']['available_balance'] ?? 0;
+            $currency = config('social-banking.currency', 'MWK');
+
+            // Account exists, update session with recipient details and sender's balance
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => $sessionData['state'],
                 'data' => [
                     ...$sessionData['data'],
                     'recipient' => $recipient,
                     'recipient_name' => $result['data']['name'] ?? 'Unknown',
+                    'available_balance' => $availableBalance,
                     'step' => self::STATES['AMOUNT_INPUT']
                 ]
             ]);
 
             return $this->formatTextResponse(
                 "Account verified \n" .
-                "Account holder: {$result['data']['name']}\n\n" .
+                "Account holder: {$result['data']['name']}\n" .
+                "Available balance: {$currency} {$availableBalance}\n\n" .
                 "Please enter the amount to transfer:"
             );
         }
@@ -251,6 +265,23 @@ class TransferController extends BaseMessageController
             }
 
             return $this->formatTextResponse("Invalid amount. Please enter a valid number:");
+        }
+
+        // Validate against available balance
+        $availableBalance = $sessionData['data']['available_balance'] ?? 0;
+        if (floatval($amount) > floatval($availableBalance)) {
+            if (config('app.debug')) {
+                Log::warning('Insufficient balance:', [
+                    'amount' => $amount,
+                    'available' => $availableBalance
+                ]);
+            }
+
+            $currency = config('social-banking.currency', 'MWK');
+            return $this->formatTextResponse(
+                "Insufficient balance. Your available balance is {$currency} {$availableBalance}.\n" .
+                "Please enter a lower amount:"
+            );
         }
 
         // Update session with amount while preserving state
