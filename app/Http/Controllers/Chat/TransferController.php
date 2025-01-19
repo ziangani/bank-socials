@@ -38,7 +38,7 @@ class TransferController extends BaseMessageController
         }
 
         $currentStep = $sessionData['data']['step'] ?? null;
-        
+
         return match($currentStep) {
             self::STATES['RECIPIENT_INPUT'] => $this->processRecipientInput($message, $sessionData, 'internal'),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
@@ -57,7 +57,7 @@ class TransferController extends BaseMessageController
         }
 
         $currentStep = $sessionData['data']['step'] ?? null;
-        
+
         return match($currentStep) {
             self::STATES['RECIPIENT_INPUT'] => $this->processRecipientInput($message, $sessionData, 'bank'),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
@@ -76,7 +76,7 @@ class TransferController extends BaseMessageController
         }
 
         $currentStep = $sessionData['data']['step'] ?? null;
-        
+
         return match($currentStep) {
             self::STATES['RECIPIENT_INPUT'] => $this->processRecipientInput($message, $sessionData, 'mobile'),
             self::STATES['AMOUNT_INPUT'] => $this->processAmountInput($message, $sessionData),
@@ -128,7 +128,7 @@ class TransferController extends BaseMessageController
         }
 
         $recipient = $message['content'];
-        
+
         // Validate recipient format based on type
         if (!$this->validateRecipient($recipient, $type)) {
             if (config('app.debug')) {
@@ -170,7 +170,7 @@ class TransferController extends BaseMessageController
                 'data' => [
                     ...$sessionData['data'],
                     'recipient' => $recipient,
-                    'recipient_name' => $result['data']['account_name'] ?? 'Unknown',
+                    'recipient_name' => $result['data']['bank_profile']['name'] ?? 'Unknown',
                     'step' => self::STATES['AMOUNT_INPUT']
                 ]
             ]);
@@ -205,7 +205,7 @@ class TransferController extends BaseMessageController
         }
 
         $amount = $message['content'];
-        
+
         // Validate amount
         if (!$this->validateAmount($amount)) {
             if (config('app.debug')) {
@@ -232,7 +232,7 @@ class TransferController extends BaseMessageController
             $amount,
             $sessionData
         );
-        
+
         return $this->formatMenuResponse(
             $confirmationMsg,
             [
@@ -288,7 +288,7 @@ class TransferController extends BaseMessageController
         // Process the transfer through ESB
         $transferData = $sessionData['data'];
         $esb = new \App\Integrations\ESB();
-        
+
         $result = $esb->transferToBankAccount(
             $user->account_number,
             $transferData['recipient'],

@@ -4,8 +4,21 @@ namespace App\Integrations;
 
 class ESB
 {
-    private string $baseUrl = 'https://mobile-banking-v2.abakula.com/api';
-    private string $apiKey = '18c0bcde-1c62-48b5-b89b-7d607f1b5295';
+    private string $baseUrl;
+    private string $apiKey;
+
+    public function __construct()
+    {
+        $this->apiKey = env('ESB_API_KEY');
+        $this->baseUrl = env('ESB_BASE_URL');
+        
+        if (empty($this->apiKey)) {
+            throw new \RuntimeException('ESB API key not configured');
+        }
+        if (empty($this->baseUrl)) {
+            throw new \RuntimeException('ESB base URL not configured');
+        }
+    }
 
     private const ENDPOINTS = [
         'account_details' => '/third-party/mobile-banking/cbs_account_details',
