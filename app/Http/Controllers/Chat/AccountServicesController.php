@@ -80,8 +80,8 @@ class AccountServicesController extends BaseMessageController
             ]);
         }
 
-        // Simulate balance fetch (replace with actual implementation)
-        $balance = $this->getAccountBalance();
+        // Get balance using session data
+        $balance = $this->getAccountBalance($sessionData);
         $currency = config('social-banking.currency', 'MWK');
 
         // Reset session to welcome state
@@ -432,9 +432,9 @@ class AccountServicesController extends BaseMessageController
         return checkdate($parts[1], $parts[0], $parts[2]);
     }
 
-    protected function getAccountBalance(): array
+    protected function getAccountBalance(array $sessionData): array
     {
-        $user = $this->sessionData['authenticated_user'] ?? null;
+        $user = $sessionData['authenticated_user']['App\\Models\\ChatUser'] ?? null;
         if (!$user) {
             throw new \Exception('User not authenticated');
         }
