@@ -177,7 +177,7 @@ class TransferController extends BaseMessageController
 
             return $this->formatTextResponse(
                 "Account verified ✅\n" .
-                "Account holder: {$result['data']['account_name']}\n\n" .
+                "Account holder: {$result['data']['bank_profile']['name']}\n\n" .
                 "Please enter the amount to transfer:"
             );
         }
