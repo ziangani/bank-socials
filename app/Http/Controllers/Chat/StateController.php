@@ -126,7 +126,7 @@ class StateController extends BaseMessageController
         }
 
         // Check authentication for protected states
-        if (!$this->authenticationController->isUserAuthenticated($message['sender'])) {
+        if (!isset($sessionData['authenticated_user']) || !$this->authenticationController->isUserAuthenticated($message['sender'])) {
             if ($this->messageAdapter instanceof WhatsAppMessageAdapter) {
                 // For WhatsApp, initiate OTP verification
                 $this->messageAdapter->updateSession($message['session_id'], [

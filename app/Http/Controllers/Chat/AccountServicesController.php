@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Chat;
 
 use Illuminate\Support\Facades\Log;
+use App\Models\ChatUser;
 
 class AccountServicesController extends BaseMessageController
 {
@@ -434,8 +435,24 @@ class AccountServicesController extends BaseMessageController
 
     protected function getAccountBalance(array $sessionData): array
     {
-        $user = $sessionData['authenticated_user']['App\\Models\\ChatUser'] ?? null;
-        if (!$user) {
+        // Support both formats of authenticated user data
+        $user = null;
+        if (isset($sessionData['authenticated_user']['App\\Models\\ChatUser'])) {
+            // New format
+            $userData = $sessionData['authenticated_user']['App\\Models\\ChatUser'];
+            // Convert to object if it's an array
+            $user = is_array($userData) ? (object)$userData : $userData;
+        } elseif (isset($sessionData['authenticated_user'])) {
+            // Old format - might be array, object, or Eloquent model
+            $userData = $sessionData['authenticated_user'];
+            if ($userData instanceof ChatUser) {
+                $user = $userData;
+            } else {
+                $user = is_array($userData) ? (object)$userData : $userData;
+            }
+        }
+
+        if (!$user || !isset($user->account_number)) {
             throw new \Exception('User not authenticated');
         }
 

@@ -42,10 +42,13 @@ class AuthenticationController extends BaseMessageController
         // Create new login record
         ChatUserLogin::createLogin($chatUser, $message['session_id']);
 
-        // Update session state
+        // Update session state with authenticated user
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'WELCOME',
-            'data' => []
+            'data' => [],
+            'authenticated_user' => [
+                'App\\Models\\ChatUser' => $chatUser->toArray()
+            ]
         ]);
 
         return app(MenuController::class)->showMainMenu($message);
@@ -118,10 +121,13 @@ class AuthenticationController extends BaseMessageController
         // Create new login record
         ChatUserLogin::createLogin($chatUser, $message['session_id']);
 
-        // Update session state
+        // Update session state with authenticated user
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'WELCOME',
-            'data' => []
+            'data' => [],
+            'authenticated_user' => [
+                'App\\Models\\ChatUser' => $chatUser->toArray()
+            ]
         ]);
 
         return app(MenuController::class)->showMainMenu($message);
