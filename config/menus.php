@@ -42,12 +42,12 @@ return [
 
     'transfer' => [
         '1' => [
-            'text' => 'Send to FDH Account',
+            'text' => 'Internal Transfer',
             'function' => 'handleInternalTransfer',
             'state' => 'INTERNAL_TRANSFER'
         ],
         '2' => [
-            'text' => 'Inter-Bank Transfer',
+            'text' => 'Bank Transfer',
             'function' => 'handleBankTransfer',
             'state' => 'BANK_TRANSFER'
         ],
@@ -74,10 +74,10 @@ return [
             'function' => 'handleFullStatement',
             'state' => 'FULL_STATEMENT'
         ],
-//        '4' => [
-//            'text' => 'PIN Management',
-//            'function' => 'handlePINManagement',
-//            'state' => 'PIN_MANAGEMENT'
-//        ]
+        '4' => [
+            'text' => 'PIN Management',
+            'function' => 'handlePINManagement',
+            'state' => 'PIN_MANAGEMENT'
+        ]
     ]
 ];
