@@ -212,6 +212,7 @@ class TransferController extends BaseMessageController
             }
 
             $availableBalance = $senderResult['data']['available_balance'] ?? 0;
+            $formattedBalance = number_format(floatval($availableBalance), 2);
             $currency = config('social-banking.currency', 'MWK');
 
             // Account exists, update session with recipient details and sender's balance
@@ -229,7 +230,7 @@ class TransferController extends BaseMessageController
             return $this->formatTextResponse(
                 "Account verified \n" .
                 "Account holder: {$result['data']['name']}\n" .
-                "Available balance: {$currency} {$availableBalance}\n\n" .
+                "Available balance: {$currency} {$formattedBalance}\n\n" .
                 "Please enter the amount to transfer:"
             );
         }
@@ -278,8 +279,9 @@ class TransferController extends BaseMessageController
             }
 
             $currency = config('social-banking.currency', 'MWK');
+            $formattedBalance = number_format(floatval($availableBalance), 2);
             return $this->formatTextResponse(
-                "Insufficient balance. Your available balance is {$currency} {$availableBalance}.\n" .
+                "Insufficient balance. Your available balance is {$currency} {$formattedBalance}.\n" .
                 "Please enter a lower amount:"
             );
         }
@@ -442,8 +444,9 @@ class TransferController extends BaseMessageController
         if ($recipientName) {
             $message .= "To: {$recipientName}\n";
         }
+        $formattedAmount = number_format(floatval($amount), 2);
         $message .= "Account: {$recipient}\n" .
-                   "Amount: {$currency} {$amount}\n\n" .
+                   "Amount: {$currency} {$formattedAmount}\n\n" .
                    "Select an option:";
 
         return $message;
@@ -452,8 +455,9 @@ class TransferController extends BaseMessageController
     protected function formatSuccessMessage(string $type, string $recipient, string $amount, array $data): string
     {
         $currency = config('social-banking.currency', 'MWK');
+        $formattedAmount = number_format(floatval($amount), 2);
         return "Transfer Submitted Successfully! ✅\n\n" .
-               "Amount: {$currency} {$amount}\n" .
+               "Amount: {$currency} {$formattedAmount}\n" .
                "Recipient: {$recipient}\n" .
                "Reference: {$data['reference']}\n" .
                "Date: {$data['value_date']}";
