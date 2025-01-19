@@ -81,25 +81,42 @@ class AccountServicesController extends BaseMessageController
             ]);
         }
 
-        // Get balance using session data
-        $balance = $this->getAccountBalance($sessionData);
-        $currency = config('social-banking.currency', 'MWK');
+        try {
+            // Get balance using session data
+            $balance = $this->getAccountBalance($sessionData);
+            $currency = config('social-banking.currency', 'MWK');
 
-        // Reset session to welcome state
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'WELCOME'
-        ]);
+            // Reset session to welcome state
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'WELCOME'
+            ]);
 
-        if (config('app.debug')) {
-            Log::info('Balance inquiry successful, returning to welcome state');
+            if (config('app.debug')) {
+                Log::info('Balance inquiry successful, returning to welcome state');
+            }
+
+            return $this->formatTextResponse(
+                "Your current balance is:\n\n" .
+                "Available Balance: {$currency} {$balance['available']}\n" .
+                "Actual Balance: {$currency} {$balance['actual']}\n\n" .
+                "Reply with 00 to return to main menu."
+            );
+        } catch (\Exception $e) {
+            // Reset session to welcome state
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'WELCOME'
+            ]);
+
+            if (config('app.debug')) {
+                Log::error('Balance inquiry failed:', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            return $this->formatTextResponse(
+                "Balance details could not be retrieved. Please contact bank for assistance.\n\n" 
+            );
         }
-
-        return $this->formatTextResponse(
-            "Your current balance is:\n\n" .
-            "Available Balance: {$currency} {$balance['available']}\n" .
-            "Actual Balance: {$currency} {$balance['actual']}\n\n" .
-            "Reply with 00 to return to main menu."
-        );
     }
 
     public function processMiniStatement(array $message, array $sessionData): array
@@ -461,7 +478,7 @@ class AccountServicesController extends BaseMessageController
         $result = $esb->getAccountDetailsAndBalance($user->account_number);
         
         if (!$result['status']) {
-            throw new \Exception($result['message']);
+            throw new \Exception('Balance details could not be retrieved. Please contact bank for assistance.');
         }
         
         return [
