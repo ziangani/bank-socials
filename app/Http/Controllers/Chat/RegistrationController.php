@@ -11,7 +11,9 @@ use App\Interfaces\MessageAdapterInterface;
 use App\Services\SessionManager;
 use App\Adapters\WhatsAppMessageAdapter;
 use App\Common\GeneralStatus;
+use App\Integrations\ESB;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class RegistrationController extends BaseMessageController
 {
@@ -24,14 +26,17 @@ class RegistrationController extends BaseMessageController
     ];
 
     protected AuthenticationService $authService;
+    protected ESB $esb;
 
     public function __construct(
         MessageAdapterInterface $messageAdapter,
         SessionManager $sessionManager,
-        AuthenticationService $authService
+        AuthenticationService $authService,
+        ESB $esb
     ) {
         parent::__construct($messageAdapter, $sessionManager);
         $this->authService = $authService;
+        $this->esb = $esb;
     }
 
     protected function isWhatsAppChannel(): bool
@@ -101,13 +106,10 @@ class RegistrationController extends BaseMessageController
 
         $accountNumber = $message['content'];
 
-        // Validate account through AuthenticationService
-        $validation = $this->authService->validateAccountDetails([
-            'account_number' => $accountNumber,
-            'phone_number' => $message['sender']
-        ]);
+        // 1. Validate account through ESB
+        $validation = $this->esb->getAccountDetailsAndBalance($accountNumber);
 
-        if ($validation['status'] !== GeneralStatus::SUCCESS) {
+        if (!$validation['status']) {
             if (config('app.debug')) {
                 Log::warning('Account validation failed:', $validation);
             }
@@ -118,46 +120,41 @@ class RegistrationController extends BaseMessageController
             );
         }
 
-        // For WhatsApp registrations, skip PIN setup and go straight to OTP verification
+        // 2. Generate OTP through ESB
+        $otpResult = $this->esb->generateOTP($message['sender']);
+        if (!$otpResult['status']) {
+            return $this->formatTextResponse(
+                "Failed to send verification code. Please try again later or contact support."
+            );
+        }
+
+        // Store account and OTP details
+        $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
+            'account_number' => $accountNumber,
+            'account_details' => $validation['data'],
+            'otp' => $otpResult['data']['otp'],
+            'otp_generated_at' => now(),
+            'expires_at' => $otpResult['data']['expires_at'],
+            'registration_reference' => Str::random(16)
+        ]);
+
+        // For WhatsApp, go straight to OTP verification
         if ($this->isWhatsAppChannel()) {
-            // Generate OTP through AuthenticationService
-            $otpResult = $this->authService->registerWithAccount([
-                'account_number' => $accountNumber,
-                'phone_number' => $message['sender']
-            ]);
-
-            if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
-                return $this->formatTextResponse(
-                    "Failed to send verification code. Please try again later or contact support."
-                );
-            }
-
-            $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
-                'account_number' => $accountNumber,
-                'registration_reference' => $otpResult['data']['reference'],
-                'otp' => $otpResult['data']['otp'],
-                'otp_generated_at' => now(),
-                'step' => self::STATES['OTP_VERIFICATION']
-            ]);
-
-            // Set both state and step to OTP_VERIFICATION for consistency
+            $sessionDataMerged['step'] = self::STATES['OTP_VERIFICATION'];
+            
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'OTP_VERIFICATION',
                 'data' => $sessionDataMerged
             ]);
 
             return $this->formatTextResponse(
-                "Welcome back to Social Banking!\n\n" .
-                "Please enter the 6-digit OTP sent to your number via SMS.\n\n" .
-                "Test OTP: " . $otpResult['data']['otp']
+                "Let's help you register for Social Banking!\n\n" .
+                "Please enter the 6-digit OTP sent to your number via SMS.\n\n" 
             );
         }
 
-        // For USSD registrations, continue with PIN setup
-        $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
-            'account_number' => $accountNumber,
-            'step' => self::STATES['PIN_SETUP']
-        ]);
+        // For USSD, continue with PIN setup
+        $sessionDataMerged['step'] = self::STATES['PIN_SETUP'];
 
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'ACCOUNT_REGISTRATION',
@@ -246,23 +243,18 @@ class RegistrationController extends BaseMessageController
             return $this->formatTextResponse("PINs do not match. Please set up your PIN again (must be 4 digits):");
         }
 
-        // Generate OTP through AuthenticationService
-        $otpResult = $this->authService->registerWithAccount([
-            'account_number' => $sessionData['data']['account_number'],
-            'phone_number' => $message['sender'],
-            'pin' => $sessionData['data']['pin']
-        ]);
-
-        if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
+        // Generate OTP through ESB
+        $otpResult = $this->esb->generateOTP($message['sender']);
+        if (!$otpResult['status']) {
             return $this->formatTextResponse(
                 "Failed to send verification code. Please try again later or contact support."
             );
         }
 
         $sessionDataMerged = array_merge($sessionData['data'] ?? [], [
-            'registration_reference' => $otpResult['data']['reference'],
             'otp' => $otpResult['data']['otp'],
             'otp_generated_at' => now(),
+            'expires_at' => $otpResult['data']['expires_at'],
             'step' => self::STATES['OTP_VERIFICATION']
         ]);
 
@@ -294,15 +286,10 @@ class RegistrationController extends BaseMessageController
         $otpGeneratedAt = $sessionData['data']['otp_generated_at'] ?? null;
 
         // Check if OTP exists and hasn't expired
-        if (!$storedOtp || !$otpGeneratedAt || Carbon::parse($otpGeneratedAt)->addMinutes(5)->isPast()) {
-            // Generate new OTP
-            $otpResult = $this->authService->registerWithAccount([
-                'account_number' => $sessionData['data']['account_number'],
-                'phone_number' => $message['sender'],
-                'pin' => $sessionData['data']['pin'] ?? null // Include PIN if it exists (USSD)
-            ]);
-
-            if ($otpResult['status'] !== GeneralStatus::SUCCESS) {
+        if (!$storedOtp || !$otpGeneratedAt || Carbon::parse($sessionData['data']['expires_at'])->isPast()) {
+            // Generate new OTP through ESB
+            $otpResult = $this->esb->generateOTP($message['sender']);
+            if (!$otpResult['status']) {
                 return $this->formatTextResponse(
                     "Failed to send verification code. Please try again later or contact support."
                 );
@@ -314,64 +301,48 @@ class RegistrationController extends BaseMessageController
                 'data' => array_merge($sessionData['data'], [
                     'otp' => $otpResult['data']['otp'],
                     'otp_generated_at' => now(),
-                    'registration_reference' => $otpResult['data']['reference']
+                    'expires_at' => $otpResult['data']['expires_at']
                 ])
             ]);
 
             return $this->formatTextResponse(
-                "A new verification code has been sent to your number.\n\n" .
-                "Test OTP: " . $otpResult['data']['otp']
+                "A new verification code has been sent to your number via SMS.\n\n" .
+                "Please enter the code to complete registration:"
             );
         }
 
-        if ($inputOtp !== $storedOtp) {
+        // Verify OTP and create user through AuthenticationService
+        $result = $this->authService->verifyRegistrationOTP(
+            $sessionData['data']['registration_reference'] ?? '',
+            $inputOtp,
+            [
+                'otp' => $storedOtp,
+                'expires_at' => $sessionData['data']['expires_at'],
+                'phone_number' => $message['sender'],
+                'account_number' => $sessionData['data']['account_number'],
+                'account_details' => $sessionData['data']['account_details'],
+                'pin' => !$this->isWhatsAppChannel() ? $sessionData['data']['pin'] : null
+            ]
+        );
+
+        if ($result['status'] !== GeneralStatus::SUCCESS) {
             return $this->formatTextResponse(
-                "Invalid verification code. Please try again:"
+                $result['message'] ?? "Invalid verification code. Please try again:"
             );
         }
 
-        // Prepare user data
-        $userData = [
-            'phone_number' => $message['sender'],
-            'account_number' => $sessionData['data']['account_number'],
-            'is_verified' => true,
-            'last_otp_sent_at' => Carbon::now()
-        ];
+        // Set session state to WELCOME and clear registration data
+        $this->messageAdapter->updateSession($message['session_id'], [
+            'state' => 'WELCOME',
+            'data' => []
+        ]);
 
-        // Only include PIN for USSD registrations
-        if (!$this->isWhatsAppChannel() && isset($sessionData['data']['pin'])) {
-            $userData['pin'] = Hash::make($sessionData['data']['pin']);
+        if (config('app.debug')) {
+            Log::info('Registration successful, showing main menu');
         }
 
-        try {
-            // Use updateOrCreate to handle both new and existing users
-            $chatUser = ChatUser::updateOrCreate(
-                ['phone_number' => $message['sender']], // The unique identifier
-                $userData // The values to update or create with
-            );
-
-            // Create login record for the new user
-            ChatUserLogin::createLogin($chatUser, $message['session_id']);
-
-            // Set session state to WELCOME and clear registration data
-            $this->messageAdapter->updateSession($message['session_id'], [
-                'state' => 'WELCOME',
-                'data' => []
-            ]);
-
-            if (config('app.debug')) {
-                Log::info('Registration successful, showing main menu');
-            }
-
-            // Return success message and show main menu options
-            return app(MenuController::class)->showMainMenu($message);
-
-        } catch (\Exception $e) {
-            Log::error('Failed to save chat user:', ['error' => $e->getMessage()]);
-            return $this->formatTextResponse(
-                "Registration failed. Please try again later or contact support."
-            );
-        }
+        // Return success message and show main menu options
+        return app(MenuController::class)->showMainMenu($message);
     }
 
     protected function validatePin(string $pin): bool

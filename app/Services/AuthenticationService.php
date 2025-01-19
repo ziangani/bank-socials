@@ -4,42 +4,19 @@ namespace App\Services;
 
 use App\Common\GeneralStatus;
 use App\Models\ChatUser;
+use App\Models\ChatUserLogin;
+use App\Integrations\ESB;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
 class AuthenticationService extends BaseService
 {
-    /**
-     * Handle account-based registration
-     */
-    public function registerWithAccount(array $data): array
+    protected ESB $esb;
+
+    public function __construct(ESB $esb)
     {
-        try {
-            // Validate account details
-            $accountValidation = $this->validateAccountDetails($data);
-            if ($accountValidation['status'] !== GeneralStatus::SUCCESS) {
-                return $accountValidation;
-            }
-
-            // Generate and send OTP
-            $otp = $this->generateOTP($data['phone_number']);
-            $this->sendOTP($data['phone_number'], $otp);
-
-            // Return success with reference
-            $reference = $this->generateReference('REG');
-            return [
-                'status' => GeneralStatus::SUCCESS,
-                'message' => 'OTP sent successfully',
-                'data' => [
-                    'requires_otp' => true,
-                    'reference' => $reference,
-                    'otp' => config('app.debug') ? $otp : null // Include OTP in debug mode only
-                ]
-            ];
-
-        } catch (\Exception $e) {
-            return $this->logAndReturnError('Account registration failed', $e);
-        }
+        $this->esb = $esb;
     }
 
     /**
@@ -48,18 +25,35 @@ class AuthenticationService extends BaseService
     public function verifyRegistrationOTP(string $reference, string $otp, array $data): array
     {
         try {
-            // Validate OTP
-            if (!$this->validateOTP($data['phone_number'], $otp)) {
-                if (!config(('app.debug'))) {
-                    return [
-                        'status' => GeneralStatus::ERROR,
-                        'message' => 'Invalid OTP'
-                    ];
-                }
+            // Compare OTP entered with what was generated
+            if ($otp !== $data['otp']) {
+                return [
+                    'status' => GeneralStatus::ERROR,
+                    'message' => 'Invalid OTP'
+                ];
             }
 
-            // Create chat user account
-            $user = $this->createChatUserAccount($data);
+            // Check if OTP has expired
+            if (isset($data['expires_at']) && now()->isAfter($data['expires_at'])) {
+                return [
+                    'status' => GeneralStatus::ERROR,
+                    'message' => 'OTP has expired'
+                ];
+            }
+
+            // Create chat user account only after successful OTP validation
+            $user = new ChatUser();
+            $user->phone_number = $this->formatPhoneNumber($data['phone_number']);
+            $user->account_number = $data['account_number'];
+            $user->is_verified = true;
+            $user->last_otp_sent_at = Carbon::now();
+            if (isset($data['pin'])) {
+                $user->pin = Hash::make($data['pin']);
+            }
+            $user->save();
+
+            // Create login record for the new user
+            ChatUserLogin::createLogin($user, $reference);
 
             return [
                 'status' => GeneralStatus::SUCCESS,
@@ -150,9 +144,14 @@ class AuthenticationService extends BaseService
         try {
             $user = ChatUser::find($userId);
 
-            // Generate and send OTP
-            $otp = $this->generateOTP($user->phone_number);
-            $this->sendOTP($user->phone_number, $otp);
+            // Generate and send OTP through ESB
+            $otpResult = $this->esb->generateOTP($user->phone_number);
+            if (!$otpResult['status']) {
+                return [
+                    'status' => GeneralStatus::ERROR,
+                    'message' => $otpResult['message'] ?? 'Failed to send OTP'
+                ];
+            }
 
             // Generate reference
             $reference = $this->generateReference('PIN');
@@ -162,7 +161,8 @@ class AuthenticationService extends BaseService
                 'data' => [
                     'requires_otp' => true,
                     'reference' => $reference,
-                    'otp' => config('app.debug') ? $otp : null // Include OTP in debug mode only
+                    'otp' => $otpResult['data']['otp'], // ESB OTP
+                    'expires_at' => $otpResult['data']['expires_at'] // ESB expiry time
                 ]
             ];
 
@@ -174,16 +174,24 @@ class AuthenticationService extends BaseService
     /**
      * Verify PIN reset OTP and set new PIN
      */
-    public function verifyPINResetOTP(string $reference, string $otp, string $userId, string $newPin): array
+    public function verifyPINResetOTP(string $reference, string $otp, string $userId, string $newPin, array $otpData): array
     {
         try {
             $user = ChatUser::find($userId);
 
-            // Validate OTP
-            if (!$this->validateOTP($user->phone_number, $otp)) {
+            // Compare OTP entered with what was generated
+            if ($otp !== $otpData['otp']) {
                 return [
                     'status' => GeneralStatus::ERROR,
                     'message' => 'Invalid OTP'
+                ];
+            }
+
+            // Check if OTP has expired
+            if (isset($otpData['expires_at']) && now()->isAfter($otpData['expires_at'])) {
+                return [
+                    'status' => GeneralStatus::ERROR,
+                    'message' => 'OTP has expired'
                 ];
             }
 
@@ -210,18 +218,10 @@ class AuthenticationService extends BaseService
     }
 
     /**
-     * Validate account details
+     * Validate account details using ESB
      */
     public function validateAccountDetails(array $data): array
     {
-        // Validate account number format
-        if (!preg_match('/^[0-9]{10,}$/', $data['account_number'])) {
-            return [
-                'status' => GeneralStatus::ERROR,
-                'message' => 'Invalid account number'
-            ];
-        }
-
         // Validate phone number
         if (empty($data['phone_number'])) {
             return [
@@ -230,38 +230,20 @@ class AuthenticationService extends BaseService
             ];
         }
 
-        // TODO: Implement actual account validation with core banking system
+        // Validate account through ESB
+        $validation = $this->esb->getAccountDetailsAndBalance($data['account_number']);
+        if (!$validation['status']) {
+            return [
+                'status' => GeneralStatus::ERROR,
+                'message' => $validation['message'] ?? 'Invalid account number'
+            ];
+        }
 
         return [
             'status' => GeneralStatus::SUCCESS,
-            'message' => 'Account details validated successfully'
+            'message' => 'Account details validated successfully',
+            'data' => $validation['data'] ?? []
         ];
-    }
-
-    /**
-     * Create chat user account
-     */
-    protected function createChatUserAccount(array $data): ChatUser
-    {
-        $user = new ChatUser();
-        $user->phone_number = $this->formatPhoneNumber($data['phone_number']);
-        $user->account_number = $data['account_number'];
-        $user->is_verified = true;
-        if (isset($data['pin'])) {
-            $user->pin = Hash::make($data['pin']);
-        }
-        $user->save();
-
-        return $user;
-    }
-
-    /**
-     * Send OTP to user
-     */
-    protected function sendOTP(string $phoneNumber, string $otp): void
-    {
-        // TODO: Implement actual OTP sending logic
-        Log::info("OTP sent to $phoneNumber: $otp");
     }
 
     /**
