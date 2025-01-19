@@ -9,15 +9,18 @@ class ESB
 
     public function __construct()
     {
-        $this->apiKey = env('ESB_API_KEY');
-        $this->baseUrl = env('ESB_BASE_URL');
+        $apiKey = env('ESB_API_KEY');
+        $baseUrl = env('ESB_BASE_URL');
 
-        if (empty($this->apiKey)) {
+        if (empty($apiKey)) {
             throw new \RuntimeException('ESB API key not configured');
         }
-        if (empty($this->baseUrl)) {
+        if (empty($baseUrl)) {
             throw new \RuntimeException('ESB base URL not configured');
         }
+
+        $this->apiKey = $apiKey;
+        $this->baseUrl = $baseUrl;
     }
 
     private const ENDPOINTS = [
