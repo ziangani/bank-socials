@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\ChatUser;
 use App\Models\ChatUserLogin;
 use App\Adapters\WhatsAppMessageAdapter;
+use App\Integrations\ESB;
 
 class AuthenticationController extends BaseMessageController
 {
@@ -59,24 +60,45 @@ class AuthenticationController extends BaseMessageController
      */
     public function initiateOTPVerification(array $message): array
     {
-        // Generate and send OTP
-        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        try {
+            // Generate OTP via ESB
+            $esb = new ESB();
+            $result = $esb->generateOTP($message['sender']);
 
-        // Store OTP in session
-        $this->messageAdapter->updateSession($message['session_id'], [
-            'state' => 'OTP_VERIFICATION',
-            'data' => [
-                'otp' => $otp,
-                'otp_generated_at' => now(),
-                'is_authentication' => true // Flag to distinguish from registration OTP
-            ]
-        ]);
+            if (!$result['status']) {
+                Log::error('Failed to generate OTP:', [
+                    'phone' => $message['sender'],
+                    'error' => $result['message']
+                ]);
+                return [
+                    'message' => "Sorry, we couldn't generate an OTP at this time. Please try again later.",
+                    'type' => 'text'
+                ];
+            }
 
-        // Return response only, let ChatController handle sending
-        return [
-            'message' => "Welcome back to Social Banking!\n\nPlease enter the 6-digit OTP sent to your number via SMS.\n\nTest OTP: $otp",
-            'type' => 'text'
-        ];
+            // Store OTP from ESB response in session
+            $this->messageAdapter->updateSession($message['session_id'], [
+                'state' => 'OTP_VERIFICATION',
+                'data' => [
+                    'otp' => $result['data']['otp'],
+                    'otp_generated_at' => now(),
+                    'expires_at' => $result['data']['expires_at'],
+                    'is_authentication' => true // Flag to distinguish from registration OTP
+                ]
+            ]);
+
+            // Return response only, let ChatController handle sending
+            return [
+                'message' => "Welcome back to Social Banking!\n\nPlease enter the 6-digit OTP sent to your number via SMS.",
+                'type' => 'text'
+            ];
+        } catch (\Exception $e) {
+            Log::error('OTP generation error: ' . $e->getMessage());
+            return [
+                'message' => "Sorry, we couldn't generate an OTP at this time. Please try again later.",
+                'type' => 'text'
+            ];
+        }
     }
 
     /**
@@ -94,8 +116,8 @@ class AuthenticationController extends BaseMessageController
             return $this->initiateOTPVerification($message);
         }
 
-        // Check OTP expiry (5 minutes)
-        if (Carbon::parse($otpGeneratedAt)->addMinutes(5)->isPast()) {
+        // Check OTP expiry using ESB's expires_at
+        if (Carbon::parse($sessionData['data']['expires_at'])->isPast()) {
             return [
                 'message' => "OTP has expired. Please request a new one.",
                 'type' => 'text'
