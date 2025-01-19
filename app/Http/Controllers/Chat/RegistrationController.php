@@ -116,7 +116,7 @@ class RegistrationController extends BaseMessageController
 
             $errorMessage = $validation['message'] ?? 'Invalid account number';
             return $this->formatTextResponse(
-                "{$errorMessage}\n\nPlease enter a valid 10-digit account number:"
+                "{$errorMessage}\n\nPlease enter a valid account number:"
             );
         }
 
