@@ -205,7 +205,7 @@ class Helpers
             $fud->type = $type;
             $fud->save();
         } catch (\Exception $e) {
-            throw new \Exception('Something went wrong: ' . $e->getMessage());
+            Log::error('Something went wrong: ' . $e->getMessage());
         }
     }
 

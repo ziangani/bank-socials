@@ -74,10 +74,10 @@ return [
             'function' => 'handleFullStatement',
             'state' => 'FULL_STATEMENT'
         ],
-        '4' => [
-            'text' => 'PIN Management',
-            'function' => 'handlePINManagement',
-            'state' => 'PIN_MANAGEMENT'
-        ]
+//        '4' => [
+//            'text' => 'PIN Management',
+//            'function' => 'handlePINManagement',
+//            'state' => 'PIN_MANAGEMENT'
+//        ]
     ]
 ];

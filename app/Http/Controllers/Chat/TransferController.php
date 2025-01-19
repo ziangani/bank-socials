@@ -113,8 +113,33 @@ class TransferController extends BaseMessageController
             'bank' => "Please enter recipient's bank account number:",
             'mobile' => "Please enter recipient's mobile number (format: 07XXXXXXXX):"
         ];
+        // Get user's frequently used accounts if this is a bank or internal transfer
+        $message = $prompts[$type] . "\n\n";
+        
+        if (in_array($type, ['internal', 'bank'])) {
+            $user = $sessionData['authenticated_user'] ?? null;
+            if ($user) {
+                $savedAccounts = \App\Common\Helpers::getBotFud(
+                    $user->id,
+                    'whatsapp',
+                    'transfer',
+                    'account'
+                );
+                
+                if (!empty($savedAccounts)) {
+                    $buttons = [];
+                    foreach ($savedAccounts as $friendly => $account) {
+                        $buttons[$account] = ['text' => $friendly];
+                    }
+                    return $this->formatMenuResponse(
+                        $message . "Select from previous accounts or type a new account number:",
+                        $buttons
+                    );
+                }
+            }
+        }
 
-        return $this->formatTextResponse($prompts[$type]);
+        return $this->formatTextResponse($message);
     }
 
     protected function processRecipientInput(array $message, array $sessionData, string $type): array
@@ -176,7 +201,7 @@ class TransferController extends BaseMessageController
             ]);
 
             return $this->formatTextResponse(
-                "Account verified ✅\n" .
+                "Account verified \n" .
                 "Account holder: {$result['data']['name']}\n\n" .
                 "Please enter the amount to transfer:"
             );
@@ -307,6 +332,19 @@ class TransferController extends BaseMessageController
             );
         }
 
+        // Store account details for future use
+            $recipientName = $transferData['recipient_name'] ?? '';
+            $friendlyValue = substr($transferData['recipient'], -5) . ' - ' . substr($recipientName, 0, 15);
+            \App\Common\Helpers::logBotUserFud(
+                $user->id,
+                $friendlyValue,
+                $transferData['recipient'],
+                'whatsapp',
+                'account',
+                'transfer'
+            );
+     
+
         // Reset session to welcome state
         $this->messageAdapter->updateSession($message['session_id'], [
             'state' => 'WELCOME'
@@ -366,9 +404,7 @@ class TransferController extends BaseMessageController
     protected function formatSuccessMessage(string $type, string $recipient, string $amount, array $data): string
     {
         $currency = config('social-banking.currency', 'MWK');
-        $status = ucfirst($data['status']); // Convert 'pending' to 'Pending'
-
-        return "Transfer {$status}! ✅\n\n" .
+        return "Transfer Submitted Successfully! ✅\n\n" .
                "Amount: {$currency} {$amount}\n" .
                "Recipient: {$recipient}\n" .
                "Reference: {$data['reference']}\n" .
