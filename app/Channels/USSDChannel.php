@@ -154,8 +154,15 @@ class USSDChannel implements ChannelInterface
                 'ussd'
             );
 
+            // Use unregistered menu from config
+            $menu = config('menus.unregistered');
+            $menuText = "Welcome to Social Banking\n";
+            foreach ($menu as $key => $item) {
+                $menuText .= "{$key}. {$item['text']}\n";
+            }
+
             return [
-                'message' => "Welcome to Social Banking\n1. Register\n2. Help",
+                'message' => trim($menuText),
                 'type' => 'CON'
             ];
         }
@@ -199,14 +206,16 @@ class USSDChannel implements ChannelInterface
 
     protected function processUSSDInput(WhatsAppSessions $session, string $input): array
     {
-        return match($session->state) {
+        return match ($session->state) {
             'INIT' => $this->handleInitialPin($session, $input),
             'REGISTRATION_INIT' => $this->handleRegistrationInit($session, $input),
             'ACCOUNT_NUMBER_INPUT' => $this->handleAccountNumberInput($session, $input),
             'PIN_SETUP' => $this->handlePinSetup($session, $input),
             'CONFIRM_PIN' => $this->handleConfirmPin($session, $input),
             'MAIN_MENU' => $this->handleMainMenu($session, $input),
-            'SEND_MONEY' => $this->handleSendMoney($session, $input),
+            'TRANSFER_INIT' => $this->handleTransferInit($session, $input),
+            'BILL_PAYMENT_INIT' => $this->handleBillPaymentInit($session, $input),
+            'SERVICES_INIT' => $this->handleServicesInit($session, $input),
             'AWAITING_AMOUNT' => $this->handleAmount($session, $input),
             'AWAITING_PIN' => $this->handleTransactionPin($session, $input),
             default => $this->handleUnknownState($session)
@@ -218,8 +227,14 @@ class USSDChannel implements ChannelInterface
         $chatUser = ChatUser::where('phone_number', $session->sender)->first();
 
         if (!$chatUser) {
+            $menu = config('menus.unregistered');
+            $menuText = "Account not registered. Please register first.\n";
+            foreach ($menu as $key => $item) {
+                $menuText .= "{$key}. {$item['text']}\n";
+            }
+
             return [
-                'message' => "Account not registered. Please register first.\n1. Register\n2. Help",
+                'message' => trim($menuText),
                 'type' => 'CON'
             ];
         }
@@ -239,14 +254,23 @@ class USSDChannel implements ChannelInterface
             'ussd'
         );
 
+        // Use main menu from config
+        $menu = config('menus.main');
+        $menuText = "Main Menu\n";
+        foreach ($menu as $key => $item) {
+            $menuText .= "{$key}. {$item['text']}\n";
+        }
+
         return [
-            'message' => "Main Menu\n1. Check Balance\n2. Send Money\n3. Pay Bills\n4. Mini Statement\n5. My Account",
+            'message' => trim($menuText),
             'type' => 'CON'
         ];
     }
 
     protected function handleRegistrationInit(WhatsAppSessions $session, string $input): array
     {
+        $menu = config('menus.unregistered');
+
         if ($input === '1') {
             WhatsAppSessions::createNewState(
                 $session->session_id,
@@ -263,17 +287,22 @@ class USSDChannel implements ChannelInterface
         } elseif ($input === '2') {
             return [
                 'message' => "Help Information:\n" .
-                            "1. Registration requires:\n" .
-                            "   - Valid account number\n" .
-                            "   - 4-digit PIN setup\n" .
-                            "2. For assistance call: 100\n\n" .
-                            "0. Back",
+                    "1. Registration requires:\n" .
+                    "   - Valid account number\n" .
+                    "   - 4-digit PIN setup\n" .
+                    "2. For assistance call: 100\n\n" .
+                    "0. Back",
                 'type' => 'CON'
             ];
         }
 
+        $menuText = "Invalid selection.\n";
+        foreach ($menu as $key => $item) {
+            $menuText .= "{$key}. {$item['text']}\n";
+        }
+
         return [
-            'message' => "Invalid selection.\n1. Register\n2. Help",
+            'message' => trim($menuText),
             'type' => 'CON'
         ];
     }
@@ -357,116 +386,87 @@ class USSDChannel implements ChannelInterface
 
     protected function handleMainMenu(WhatsAppSessions $session, string $input): array
     {
-        $response = match($input) {
-            '1' => [
-                'message' => 'Please enter your PIN to view balance:',
-                'type' => 'CON',
-                'next_state' => 'AWAITING_PIN',
-                'action' => 'balance'
-            ],
-            '2' => [
-                'message' => "Enter recipient's phone number:",
-                'type' => 'CON',
-                'next_state' => 'SEND_MONEY'
-            ],
-            '3' => [
-                'message' => "Select bill to pay:\n1. Electricity\n2. Water\n3. TV\n4. Internet",
-                'type' => 'CON',
-                'next_state' => 'BILL_PAYMENT'
-            ],
-            '4' => [
-                'message' => 'Please enter your PIN for mini statement:',
-                'type' => 'CON',
-                'next_state' => 'AWAITING_PIN',
-                'action' => 'statement'
-            ],
-            '5' => [
-                'message' => "My Account:\n1. Change PIN\n2. Update Profile\n3. Limits\n4. Help",
-                'type' => 'CON',
-                'next_state' => 'ACCOUNT_MENU'
-            ],
-            default => [
-                'message' => 'Invalid selection. Please try again.',
-                'type' => 'END',
-                'next_state' => 'END'
-            ]
-        };
+        $menu = config('menus.main');
 
-        // Create new state
+        if (!isset($menu[$input])) {
+            $menuText = "Invalid selection.\n";
+            foreach ($menu as $key => $item) {
+                $menuText .= "{$key}. {$item['text']}\n";
+            }
+
+            return [
+                'message' => trim($menuText),
+                'type' => 'CON'
+            ];
+        }
+
+        $selectedOption = $menu[$input];
         WhatsAppSessions::createNewState(
             $session->session_id,
             $session->sender,
-            $response['next_state'],
-            array_merge($session->data, ['action' => $response['action'] ?? null]),
+            $selectedOption['state'],
+            array_merge($session->data, ['action' => $selectedOption['function']]),
             'ussd'
         );
 
+        // Get submenu based on selection
+        $submenu = null;
+        switch ($input) {
+            case '1': // Money Transfer
+                $submenu = config('menus.transfer');
+                break;
+            case '2': // Bill Payments
+                return [
+                    'message' => "Select bill to pay:\n1. Electricity\n2. Water\n3. TV\n4. Internet",
+                    'type' => 'CON'
+                ];
+            case '3': // Account Services
+                $submenu = config('menus.account_services');
+                break;
+        }
+
+        if ($submenu) {
+            $menuText = "{$selectedOption['text']}\n";
+            foreach ($submenu as $key => $item) {
+                $menuText .= "{$key}. {$item['text']}\n";
+            }
+            return [
+                'message' => trim($menuText),
+                'type' => 'CON'
+            ];
+        }
+
         return [
-            'message' => $response['message'],
-            'type' => $response['type']
+            'message' => "Please enter recipient's phone number:",
+            'type' => 'CON'
         ];
     }
 
-    protected function handleSendMoney(WhatsAppSessions $session, string $input): array
+    protected function handleTransferInit(WhatsAppSessions $session, string $input): array
     {
-        // Validate phone number
-        if (!preg_match('/^\d{10,12}$/', $input)) {
+        $menu = config('menus.transfer');
+
+        if (!isset($menu[$input])) {
             return [
-                'message' => 'Invalid phone number. Please try again.',
+                'message' => "Invalid selection. Please try again.",
                 'type' => 'END'
             ];
         }
 
-        // Store recipient number and update state
         WhatsAppSessions::createNewState(
             $session->session_id,
             $session->sender,
             'AWAITING_AMOUNT',
-            array_merge($session->data, ['recipient' => $input]),
+            array_merge($session->data, ['transfer_type' => $menu[$input]['function']]),
             'ussd'
         );
 
         return [
-            'message' => 'Enter amount to send:',
-            'type' => 'CON'
+            'message' => "Enter recipient's phone number:",
+            'message' => 'Invalid PIN. Please try again.',
+            'type' => 'END'
         ];
-    }
 
-    protected function handleAmount(WhatsAppSessions $session, string $input): array
-    {
-        // Validate amount
-        if (!is_numeric($input) || $input <= 0) {
-            return [
-                'message' => 'Invalid amount. Please try again.',
-                'type' => 'END'
-            ];
-        }
-
-        // Store amount and update state
-        WhatsAppSessions::createNewState(
-            $session->session_id,
-            $session->sender,
-            'AWAITING_PIN',
-            array_merge($session->data, ['amount' => $input]),
-            'ussd'
-        );
-
-        return [
-            'message' => 'Enter PIN to confirm transfer:',
-            'type' => 'CON'
-        ];
-    }
-
-    protected function handleTransactionPin(WhatsAppSessions $session, string $input): array
-    {
-        $chatUser = ChatUser::where('phone_number', $session->sender)->first();
-
-        if (!$chatUser || !Hash::check($input, $chatUser->pin)) {
-            return [
-                'message' => 'Invalid PIN. Please try again.',
-                'type' => 'END'
-            ];
-        }
 
         $action = $session->data['action'] ?? null;
         if ($action === 'balance') {
@@ -479,9 +479,9 @@ class USSDChannel implements ChannelInterface
         if ($action === 'statement') {
             return [
                 'message' => "Mini Statement:\n" .
-                            "1. KES 1,000 Sent to 07XXXXXXXX\n" .
-                            "2. KES 500 Airtime Purchase\n" .
-                            "3. KES 2,500 Received",
+                    "1. KES 1,000 Sent to 07XXXXXXXX\n" .
+                    "2. KES 500 Airtime Purchase\n" .
+                    "3. KES 2,500 Received",
                 'type' => 'END'
             ];
         }
