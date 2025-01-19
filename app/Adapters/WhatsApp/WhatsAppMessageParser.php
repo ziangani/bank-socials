@@ -135,19 +135,33 @@ class WhatsAppMessageParser
     {
         $formattedButtons = [];
         foreach ($buttons as $button) {
-            // Pass through the button text without modification
-            // Let WhatsAppService handle the final formatting
-            $formattedButtons[] = is_array($button) ? ($button['text'] ?? '') : $button;
+            if (is_array($button)) {
+                // Preserve both text and ID if present
+                $formattedButtons[] = [
+                    'text' => $button['text'] ?? '',
+                    'id' => $button['id'] ?? null
+                ];
+            } else {
+                // Simple string buttons
+                $formattedButtons[] = ['text' => $button];
+            }
         }
         return $formattedButtons;
     }
 
     public function formatMenuOptions(array $options): array
     {
-        // Pass through menu options without modification
-        // Let WhatsAppService handle the final formatting
+        // Format menu options similar to buttons
         return array_map(function($option) {
-            return is_array($option) ? ($option['text'] ?? '') : $option;
+            if (is_array($option)) {
+                // Preserve both text and ID if present
+                return [
+                    'text' => $option['text'] ?? '',
+                    'id' => $option['id'] ?? null
+                ];
+            }
+            // Simple string options
+            return ['text' => $option];
         }, $options);
     }
 }

@@ -128,13 +128,22 @@ class TransferController extends BaseMessageController
                 
                 if (!empty($savedAccounts)) {
                     $buttons = [];
+                    $index = 1;
                     foreach ($savedAccounts as $friendly => $account) {
-                        $buttons[$account] = ['text' => $friendly];
+                        // Include account number in button text after friendly name
+                        $buttons[$account] = [
+                            'text' => $friendly . ' (' . $account . ')'
+                        ];
+                        $index++;
                     }
-                    return $this->formatMenuResponse(
-                        $message . "Select from previous accounts or type a new account number:",
-                        $buttons
-                    );
+                    // Use custom button IDs for account selection
+                    return [
+                        'message' => $message . "Select from previous accounts or type a new account number:",
+                        'type' => 'interactive',
+                        'buttons' => $buttons,
+                        'use_custom_ids' => true,
+                        'end_session' => false
+                    ];
                 }
             }
         }
@@ -152,7 +161,11 @@ class TransferController extends BaseMessageController
             ]);
         }
 
+        // Extract account number if it's from a button selection
         $recipient = $message['content'];
+        if (preg_match('/\((\d+)\)$/', $recipient, $matches)) {
+            $recipient = $matches[1];
+        }
 
         // Validate recipient format based on type
         if (!$this->validateRecipient($recipient, $type)) {

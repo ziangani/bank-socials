@@ -58,6 +58,18 @@ class WhatsAppMessageSender
 
             // Handle button messages
             if (isset($options['buttons'])) {
+                // Use custom button IDs if specified
+                if (isset($options['use_custom_ids']) && $options['use_custom_ids']) {
+                    return $this->whatsAppService->sendMessageWithCustomButtons(
+                        $businessPhoneId,
+                        $recipient,
+                        $messageId,
+                        $message,
+                        $options['buttons']
+                    );
+                }
+                
+                // Fall back to regular button handling
                 return $this->whatsAppService->sendMessageWithButtons(
                     $businessPhoneId,
                     $recipient,

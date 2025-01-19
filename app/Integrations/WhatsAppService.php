@@ -26,7 +26,7 @@ class WhatsAppService
         $this->endpoint = config('whatsapp.url');
     }
 
-    //send button template message
+    // Send button template message with auto-generated numeric indices
     public function sendMessageWithButtons(string $businessPhoneNumberId, string $from, string $messageId, string $body, array $buttonsList)
     {
         $buttons = [];
@@ -107,6 +107,81 @@ class WhatsAppService
         $response = Http::withToken($this->graphApiToken)
             ->timeout(30)
             ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", $payload);
+
+        return ($response->status() == 200);
+    }
+
+    /**
+     * Send button template message with custom button IDs
+     * Similar to sendMessageWithButtons but allows specifying custom IDs for buttons
+     */
+    public function sendMessageWithCustomButtons(string $businessPhoneNumberId, string $from, string $messageId, string $body, array $buttonsList)
+    {
+        $buttons = [];
+        $index = 1; // For display numbering only
+        foreach ($buttonsList as $button) {
+            // Handle both formats: direct text and array with text/id
+            if (is_array($button)) {
+                $title = $button['text'] ?? '';
+                $id = $button['id'] ?? (string)$index;
+            } else {
+                $title = $button;
+                $id = (string)$index;
+            }
+            
+            // Calculate space needed for the numeric prefix (e.g., "1. ")
+            $prefixLength = strlen($index . '. ');
+            // Calculate remaining space for the actual title
+            $maxTitleLength = self::BUTTON_TITLE_MAX_LENGTH - $prefixLength;
+            // Truncate title if needed and ensure total length stays within limit
+            $truncatedTitle = substr($title, 0, $maxTitleLength);
+            
+            $buttons[] = [
+                'type' => 'reply',
+                'reply' => [
+                    'id' => $id,
+                    'title' => $index . '. ' . $truncatedTitle
+                ]
+            ];
+            $index++;
+            
+            // Break if we've reached the maximum number of buttons
+            if ($index > self::MAX_BUTTONS) {
+                break;
+            }
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $from,
+            'recipient_type' => 'individual',
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => [
+                    'text' => substr($body, 0, self::BODY_MAX_LENGTH)
+                ],
+                'action' => [
+                    'buttons' => $buttons
+                ]
+            ]
+        ];
+
+        if ($messageId) {
+            $payload['context'] = [
+                'message_id' => $messageId,
+            ];
+        }
+
+        // Log the complete payload being sent to Meta
+        Log::info('WhatsApp API Request Payload:', $payload);
+
+        $response = Http::withToken($this->graphApiToken)
+            ->timeout(30)
+            ->post($this->endpoint . "/{$businessPhoneNumberId}/messages", $payload);
+
+        // Log the response from Meta
+        Log::info('WhatsApp API Response:', ['status' => $response->status(), 'body' => $response->json()]);
 
         return ($response->status() == 200);
     }
