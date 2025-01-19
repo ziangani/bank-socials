@@ -128,7 +128,7 @@ class ESB
         $decodedResponse = $result['response'];
         $httpCode = $result['httpCode'];
 
-        if ($httpCode !== 200 || !$decodedResponse['status']) {
+        if ($httpCode !== 201 || !$decodedResponse['status']) {
             $errorMessage = 'Transfer failed';
             if (!empty($decodedResponse['errors']['error'])) {
                 $errorMessage = $decodedResponse['errors']['error'];
