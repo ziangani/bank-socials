@@ -281,7 +281,7 @@ class USSDChannel implements ChannelInterface
             );
 
             return [
-                'message' => 'Please enter your account number (10 digits):',
+                'message' => 'Please enter your account number:',
                 'type' => 'CON'
             ];
         } elseif ($input === '2') {

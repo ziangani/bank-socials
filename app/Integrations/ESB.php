@@ -11,7 +11,7 @@ class ESB
     {
         $this->apiKey = env('ESB_API_KEY');
         $this->baseUrl = env('ESB_BASE_URL');
-        
+
         if (empty($this->apiKey)) {
             throw new \RuntimeException('ESB API key not configured');
         }
@@ -69,9 +69,7 @@ class ESB
         if ($httpCode === 404 || !$decodedResponse['status']) {
             $errorMessage = 'Account details not found or service unavailable';
             if (isset($decodedResponse['message'])) {
-                $errorMessage = is_array($decodedResponse['message'])
-                    ? json_encode($decodedResponse['message'])
-                    : $decodedResponse['message'];
+                $errorMessage = is_array($decodedResponse['message']) ? "Account not found" : $decodedResponse['message'];
             }
             return [
                 'status' => false,

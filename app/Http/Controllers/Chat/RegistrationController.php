@@ -72,7 +72,7 @@ class RegistrationController extends BaseMessageController
             'data' => $sessionDataMerged
         ]);
 
-        return $this->formatTextResponse("Please enter your account number (10 digits):");
+        return $this->formatTextResponse("Please enter your account number:");
     }
 
     public function processAccountRegistration(array $message, array $sessionData): array
@@ -141,7 +141,7 @@ class RegistrationController extends BaseMessageController
         // For WhatsApp, go straight to OTP verification
         if ($this->isWhatsAppChannel()) {
             $sessionDataMerged['step'] = self::STATES['OTP_VERIFICATION'];
-            
+
             $this->messageAdapter->updateSession($message['session_id'], [
                 'state' => 'OTP_VERIFICATION',
                 'data' => $sessionDataMerged
@@ -149,7 +149,7 @@ class RegistrationController extends BaseMessageController
 
             return $this->formatTextResponse(
                 "Let's help you register for Social Banking!\n\n" .
-                "Please enter the 6-digit OTP sent to your number via SMS.\n\n" 
+                "Please enter the 6-digit OTP sent to your number via SMS.\n\n"
             );
         }
 
@@ -265,7 +265,7 @@ class RegistrationController extends BaseMessageController
         ]);
 
         // Use appropriate message based on channel
-        $message = $this->isWhatsAppChannel() 
+        $message = $this->isWhatsAppChannel()
             ? "A verification code has been sent to your WhatsApp number.\n"
             : "A verification code has been sent to your phone via SMS.\n";
 
