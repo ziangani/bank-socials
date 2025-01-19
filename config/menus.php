@@ -42,7 +42,7 @@ return [
 
     'transfer' => [
         '1' => [
-            'text' => 'Internal Transfer(FDH)',
+            'text' => 'Send to FDH Account',
             'function' => 'handleInternalTransfer',
             'state' => 'INTERNAL_TRANSFER'
         ],
