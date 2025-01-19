@@ -42,12 +42,12 @@ return [
 
     'transfer' => [
         '1' => [
-            'text' => 'Internal Transfer',
+            'text' => 'Internal Transfer(FDH)',
             'function' => 'handleInternalTransfer',
             'state' => 'INTERNAL_TRANSFER'
         ],
         '2' => [
-            'text' => 'Bank Transfer',
+            'text' => 'Inter-Bank Transfer',
             'function' => 'handleBankTransfer',
             'state' => 'BANK_TRANSFER'
         ],
