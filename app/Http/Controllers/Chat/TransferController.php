@@ -170,14 +170,14 @@ class TransferController extends BaseMessageController
                 'data' => [
                     ...$sessionData['data'],
                     'recipient' => $recipient,
-                    'recipient_name' => $result['data']['bank_profile']['name'] ?? 'Unknown',
+                    'recipient_name' => $result['data']['name'] ?? 'Unknown',
                     'step' => self::STATES['AMOUNT_INPUT']
                 ]
             ]);
 
             return $this->formatTextResponse(
                 "Account verified ✅\n" .
-                "Account holder: {$result['data']['bank_profile']['name']}\n\n" .
+                "Account holder: {$result['data']['name']}\n\n" .
                 "Please enter the amount to transfer:"
             );
         }
