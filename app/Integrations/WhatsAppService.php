@@ -9,6 +9,16 @@ class WhatsAppService
 {
     private string $graphApiToken;
     private string $endpoint;
+    
+    // WhatsApp API limits
+    private const BUTTON_TITLE_MAX_LENGTH = 20;
+    private const MAX_BUTTONS = 3;
+    private const BODY_MAX_LENGTH = 1024;
+    private const FOOTER_MAX_LENGTH = 60;
+    private const HEADER_MAX_LENGTH = 60;
+    private const SECTION_TITLE_MAX_LENGTH = 24;
+    private const ROW_TITLE_MAX_LENGTH = 20;
+    private const ROW_DESCRIPTION_MAX_LENGTH = 72;
 
     public function __construct()
     {
@@ -24,16 +34,28 @@ class WhatsAppService
         foreach ($buttonsList as $button) {
             // Handle both formats: direct text and array with 'text' key
             $title = is_array($button) ? ($button['text'] ?? '') : $button;
+            
+            // Calculate space needed for the numeric prefix (e.g., "1. ")
+            $prefixLength = strlen($index . '. ');
+            // Calculate remaining space for the actual title
+            $maxTitleLength = self::BUTTON_TITLE_MAX_LENGTH - $prefixLength;
+            // Truncate title if needed and ensure total length stays within limit
+            $truncatedTitle = substr($title, 0, $maxTitleLength);
+            
             $buttons[] = [
                 'type' => 'reply',
                 'reply' => [
                     'id' => (string)$index,
-                    'title' => $index . '. ' . substr($title, 0, 18) // WhatsApp button title limit minus prefix
+                    'title' => $index . '. ' . $truncatedTitle
                 ]
             ];
             $index++;
+            
+            // Break if we've reached the maximum number of buttons
+            if ($index > self::MAX_BUTTONS) {
+                break;
+            }
         }
-        $buttons = array_slice($buttons, 0, 3); // WhatsApp limit of 3 buttons
 
         $payload = [
             'messaging_product' => 'whatsapp',
@@ -43,7 +65,7 @@ class WhatsAppService
             'interactive' => [
                 'type' => 'button',
                 'body' => [
-                    'text' => $body
+                    'text' => substr($body, 0, self::BODY_MAX_LENGTH)
                 ],
                 'action' => [
                     'buttons' => $buttons
@@ -75,7 +97,7 @@ class WhatsAppService
         $payload = [
             'messaging_product' => 'whatsapp',
             'to' => $from,
-            'text' => ['body' => $text],
+            'text' => ['body' => substr($text, 0, self::BODY_MAX_LENGTH)],
         ];
 
         if ($messageId) {
@@ -149,14 +171,14 @@ class WhatsAppService
         array $sections
     ) {
         // Truncate fields to meet Meta's API length requirements
-        $body = substr($body, 0, 1024); // Assuming max length for body is 1024 characters
-        $footer = substr($footer, 0, 60); // Assuming max length for footer is 60 characters
+        $body = substr($body, 0, self::BODY_MAX_LENGTH);
+        $footer = substr($footer, 0, self::FOOTER_MAX_LENGTH);
 
         foreach ($sections as &$section) {
-            $section['title'] = substr($section['title'], 0, 24); // Assuming max length for section title is 24 characters
+            $section['title'] = substr($section['title'], 0, self::SECTION_TITLE_MAX_LENGTH);
             foreach ($section['rows'] as &$row) {
-                $row['title'] = substr($row['title'], 0, 20); // Assuming max length for row title is 20 characters
-                $row['description'] = substr($row['description'], 0, 72); // Assuming max length for row description is 72 characters
+                $row['title'] = substr($row['title'], 0, self::ROW_TITLE_MAX_LENGTH);
+                $row['description'] = substr($row['description'], 0, self::ROW_DESCRIPTION_MAX_LENGTH);
             }
         }
 
@@ -171,7 +193,7 @@ class WhatsAppService
                     'type' => 'list',
                     'header' => [
                         'type' => 'text',
-                        'text' => "Welcome to " . config('app.friendly_name')
+                        'text' => substr("Welcome to " . config('app.friendly_name'), 0, self::HEADER_MAX_LENGTH)
                     ],
                     'body' => [
                         'text' => $body
@@ -199,34 +221,35 @@ class WhatsAppService
 
     public function sendWelcomeMenu(string $businessPhoneNumberId, string $from, string $messageId, string $body)
     {
+        // Apply length limits to menu sections
         $sections = [
             [
-                'title' => "Account & Registration",
+                'title' => substr("Account & Registration", 0, self::SECTION_TITLE_MAX_LENGTH),
                 'rows' => [
                     [
                         'id' => "1",
-                        'title' => "Register",
-                        'description' => "Register for a new account"
+                        'title' => substr("Register", 0, self::ROW_TITLE_MAX_LENGTH),
+                        'description' => substr("Register for a new account", 0, self::ROW_DESCRIPTION_MAX_LENGTH)
                     ],
                     [
                         'id' => "4",
-                        'title' => "Account Services",
-                        'description' => "Balance inquiry, statements, and PIN management"
+                        'title' => substr("Account Services", 0, self::ROW_TITLE_MAX_LENGTH),
+                        'description' => substr("Balance inquiry, statements, and PIN management", 0, self::ROW_DESCRIPTION_MAX_LENGTH)
                     ]
                 ]
             ],
             [
-                'title' => "Transactions",
+                'title' => substr("Transactions", 0, self::SECTION_TITLE_MAX_LENGTH),
                 'rows' => [
                     [
                         'id' => "2",
-                        'title' => "Money Transfer",
-                        'description' => "Send money to bank accounts or mobile money"
+                        'title' => substr("Money Transfer", 0, self::ROW_TITLE_MAX_LENGTH),
+                        'description' => substr("Send money to bank accounts or mobile money", 0, self::ROW_DESCRIPTION_MAX_LENGTH)
                     ],
                     [
                         'id' => "3",
-                        'title' => "Bill Payments",
-                        'description' => "Pay your bills and utilities"
+                        'title' => substr("Bill Payments", 0, self::ROW_TITLE_MAX_LENGTH),
+                        'description' => substr("Pay your bills and utilities", 0, self::ROW_DESCRIPTION_MAX_LENGTH)
                     ]
                 ]
             ]
@@ -243,13 +266,13 @@ class WhatsAppService
                     'type' => 'list',
                     'header' => [
                         'type' => 'text',
-                        'text' => "Welcome to " . config('app.friendly_name')
+                        'text' => substr("Welcome to " . config('app.friendly_name'), 0, self::HEADER_MAX_LENGTH)
                     ],
                     'body' => [
-                        'text' => $body
+                        'text' => substr($body, 0, self::BODY_MAX_LENGTH)
                     ],
                     'footer' => [
-                        'text' => "Reply: 00 for menu, 000 to exit"
+                        'text' => substr("Reply: 00 for menu, 000 to exit", 0, self::FOOTER_MAX_LENGTH)
                     ],
                     'action' => [
                         'button' => "Select Option",

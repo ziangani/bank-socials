@@ -334,7 +334,11 @@ class TransferController extends BaseMessageController
 
         // Store account details for future use
             $recipientName = $transferData['recipient_name'] ?? '';
-            $friendlyValue = substr($transferData['recipient'], -5) . ' - ' . substr($recipientName, 0, 15);
+            // Create shorter friendly value within 20 char limit
+            $accountEnd = substr($transferData['recipient'], -5);
+            $nameWords = explode(' ', $recipientName);
+            $firstWord = $nameWords[0] ?? '';
+            $friendlyValue = $accountEnd . ' - ' . substr($firstWord, 0, 10);
             \App\Common\Helpers::logBotUserFud(
                 $user->id,
                 $friendlyValue,

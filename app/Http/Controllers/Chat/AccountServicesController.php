@@ -114,7 +114,7 @@ class AccountServicesController extends BaseMessageController
             }
 
             return $this->formatTextResponse(
-                "Balance details could not be retrieved. Please contact bank for assistance.\n\n" 
+                "Balance details could not be retrieved. Please contact bank for assistance.\n\n"
             );
         }
     }
@@ -131,7 +131,7 @@ class AccountServicesController extends BaseMessageController
         // Simulate fetching mini statement (replace with actual implementation)
         $transactions = $this->getMiniStatement();
         $currency = config('social-banking.currency', 'MWK');
-        
+
         // Format transactions into readable text
         $statementText = "Last 5 Transactions:\n\n";
         foreach ($transactions as $tx) {
@@ -236,7 +236,7 @@ class AccountServicesController extends BaseMessageController
         // Simulate fetching full statement (replace with actual implementation)
         $transactions = $this->getFullStatement($sessionData['data']['start_date'], $endDate);
         $currency = config('social-banking.currency', 'MWK');
-        
+
         // Format transactions into readable text
         $statementText = "Statement for {$sessionData['data']['start_date']} to {$endDate}:\n\n";
         foreach ($transactions as $tx) {
@@ -474,16 +474,16 @@ class AccountServicesController extends BaseMessageController
         }
 
         $esb = new \App\Integrations\ESB();
-        
+
         $result = $esb->getAccountDetailsAndBalance($user->account_number);
-        
+
         if (!$result['status']) {
             throw new \Exception('Balance details could not be retrieved. Please contact bank for assistance.');
         }
-        
+
         return [
             'available' => number_format($result['data']['available_balance'] ?? 0, 2),
-            'actual' => number_format($result['data']['actual_balance'] ?? 0, 2)
+            'actual' => number_format($result['data']['account_balance'] ?? 0, 2)
         ];
     }
 
